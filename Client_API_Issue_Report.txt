@@ -1,0 +1,39 @@
+Hello,
+
+We are currently facing an issue with the Third-Party Lorawan Piping Gas Meter API Endpoint. Below is the detailed report of what we are sending and the error we are receiving.
+
+=========================================
+1. CURRENT ISSUE (Meter information not found!)
+=========================================
+Our backend is successfully connecting and logging in to the API to retrieve the authentication token. We then send the recharge request. However, the external API server is rejecting the meter numbers you provided in the recent Excel sheet.
+
+We have tested the API using all possible combinations of the identifiers provided for a single meter (e.g., Row 5 from your Excel file):
+
+▶ ENDPOINT WE ARE HITTING:
+URL: http://english.energyy.ucskype.com/api/commonInternal.jsp
+Method: POST
+Headers: Content-Type: application/x-www-form-urlencoded
+
+▶ WHAT WE HAVE TRIED (AS "meterNo" IN API PAYLOAD):
+- Try 1 (IMEI): "865395070835176" -> Failed
+- Try 2 (Serial No): "20251017000003" -> Failed
+- Try 3 (STS Meter No): "2510170000034" -> Failed
+
+▶ ERROR WE ARE RECEIVING FROM SERVER FOR ALL TRIES:
+{
+  "success": false,
+  "error": "meter information not found!"
+}
+
+This error proves that:
+1. Our Token Generation (Login API) and Recharge API integration logic is 100% CORRECT (The server is actively responding).
+2. The server receives our request but rejects it because NONE of those numbers currently exist or are registered with the test account (Rwanda_Kayitare) in the Lorawan database on the provider's side.
+
+=========================================
+2. NEXT STEPS REQUIRED FROM API PROVIDER
+=========================================
+Could you please share this exact error report with the Lorawan API provider and ask them to verify:
+1. Are these newly provided meter numbers actually imported and registered under the active "Rwanda_Kayitare" account on the `english.energyy.ucskype.com` server?
+2. Which exact column from the provided Excel sheet (IMEI, Serial No, or STS Meter No) is supposed to be sent as the "meterNo" parameter in the `recharge` API call?
+
+Thank you.

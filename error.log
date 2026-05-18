@@ -1,0 +1,113 @@
+[2026-01-08T06:57:40.830Z] SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at parse (C:\Users\asus\OneDrive\Documents\company\backend\node_modules\body-parser\lib\types\json.js:74:19)
+    at C:\Users\asus\OneDrive\Documents\company\backend\node_modules\body-parser\lib\read.js:163:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:211:14)
+    at invokeCallback (C:\Users\asus\OneDrive\Documents\company\backend\node_modules\raw-body\index.js:238:16)
+    at done (C:\Users\asus\OneDrive\Documents\company\backend\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (C:\Users\asus\OneDrive\Documents\company\backend\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:518:28)
+    at IncomingMessage.emit (node:domain:489:12)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+[2026-01-13T09:18:53.903Z] SyntaxError: Unexpected token 'f', "false" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at createStrictSyntaxError (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\types\json.js:116:10)
+    at parse (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\types\json.js:68:15)
+    at C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\read.js:163:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:211:14)
+    at invokeCallback (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:238:16)
+    at done (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:518:28)
+    at IncomingMessage.emit (node:domain:489:12)\n[2026-01-13T09:18:55.602Z] SyntaxError: Unexpected token 'f', "false" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at createStrictSyntaxError (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\types\json.js:116:10)
+    at parse (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\types\json.js:68:15)
+    at C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\read.js:163:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:211:14)
+    at invokeCallback (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:238:16)
+    at done (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:518:28)
+    at IncomingMessage.emit (node:domain:489:12)\n[2026-01-14T12:42:36.816Z] TypeError: Cannot read properties of undefined (reading 'stack')
+    at C:\Users\asus\OneDrive\Documents\big_pos\backend\src\routes\debugRoutes.ts:35:37
+    at Layer.handleRequest (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\route.js:157:13)
+    at Route.dispatch (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\route.js:117:3)
+    at handle (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:435:11)
+    at Layer.handleRequest (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\layer.js:152:17)
+    at C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:295:15
+    at processParams (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:582:12)
+    at next (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:291:5)
+    at Function.handle (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:186:3)\n[2026-01-14T12:43:15.226Z] TypeError: Cannot read properties of undefined (reading 'stack')
+    at C:\Users\asus\OneDrive\Documents\big_pos\backend\src\routes\debugRoutes.ts:35:37
+    at Layer.handleRequest (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\route.js:157:13)
+    at Route.dispatch (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\route.js:117:3)
+    at handle (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:435:11)
+    at Layer.handleRequest (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\layer.js:152:17)
+    at C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:295:15
+    at processParams (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:582:12)
+    at next (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:291:5)
+    at Function.handle (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:186:3)\n[2026-01-14T12:45:13.704Z] TypeError: Cannot read properties of undefined (reading 'stack')
+    at C:\Users\asus\OneDrive\Documents\big_pos\backend\src\routes\debugRoutes.ts:35:37
+    at Layer.handleRequest (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\route.js:157:13)
+    at Route.dispatch (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\route.js:117:3)
+    at handle (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:435:11)
+    at Layer.handleRequest (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\lib\layer.js:152:17)
+    at C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:295:15
+    at processParams (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:582:12)
+    at next (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:291:5)
+    at Function.handle (C:\Users\asus\OneDrive\Documents\big_pos\backend\node_modules\router\index.js:186:3)\n[2026-02-05T01:26:28.499Z] Error: The CORS policy for this site does not allow access from the specified Origin.
+    at origin (C:\Users\Admin\Desktop\big-pos\big-pos-backend\src\index.ts:42:23)
+    at C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\cors\lib\index.js:219:13
+    at optionsCallback (C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\cors\lib\index.js:199:9)
+    at corsMiddleware (C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\cors\lib\index.js:204:7)
+    at Layer.handleRequest (C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\router\index.js:342:13)
+    at C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\router\index.js:297:9
+    at processParams (C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\router\index.js:582:12)
+    at next (C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\router\index.js:291:5)
+    at Function.handle (C:\Users\Admin\Desktop\big-pos\big-pos-backend\node_modules\router\index.js:186:3)\n[2026-02-11T05:50:28.279Z] SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at parse (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\types\json.js:74:19)
+    at C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\body-parser\lib\read.js:163:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:211:14)
+    at invokeCallback (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:238:16)
+    at done (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (C:\Users\asus\OneDrive\Documents\big_company\backend\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:518:28)
+    at IncomingMessage.emit (node:domain:489:12)
+    at endReadableNT (node:internal/streams/readable:1698:12)\n[2026-03-08T03:10:09.075Z] FATAL UNCAUGHT EXCEPTION: Error: write EPIPE
+    at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+    at writeGeneric (node:internal/stream_base_commons:150:3)
+    at WriteStream.Socket._writeGeneric (node:net:966:11)
+    at WriteStream.Socket._write (node:net:978:8)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at WriteStream.Writable.write (node:internal/streams/writable:510:10)
+    at console.value (node:internal/console/constructor:298:16)
+    at console.log (node:internal/console/constructor:384:26)
+    at _log (C:\Users\Admin\Documents\big_company\big-company_backend\node_modules\dotenv\lib\main.js:142:11)
+[2026-03-12T07:40:08.398Z] FATAL UNCAUGHT EXCEPTION: Error: write EPIPE
+    at afterWriteDispatched (node:internal/stream_base_commons:161:15)
+    at writeGeneric (node:internal/stream_base_commons:152:3)
+    at WriteStream.Socket._writeGeneric (node:net:958:11)
+    at WriteStream.Socket._write (node:net:970:8)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at WriteStream.Writable.write (node:internal/streams/writable:510:10)
+    at console.value (node:internal/console/constructor:303:16)
+    at console.log (node:internal/console/constructor:378:26)
+    at _log (C:\Users\91969\Documents\big_company\backend\node_modules\dotenv\lib\main.js:142:11)
+[2026-05-11T05:46:55.624Z] FATAL UNHANDLED REJECTION: Error: Connection is closed.
+[2026-05-11T05:47:00.246Z] FATAL UNHANDLED REJECTION: Error: Connection is closed.
+[2026-05-15T08:03:43.578Z] Error: Cannot set headers after they are sent to the client
+    at ServerResponse.setHeader (node:_http_outgoing:700:11)
+    at ServerResponse.header (C:\Users\Admin\Desktop\big_pos\backend\node_modules\express\lib\response.js:686:10)
+    at ServerResponse.send (C:\Users\Admin\Desktop\big_pos\backend\node_modules\express\lib\response.js:163:12)
+    at ServerResponse.json (C:\Users\Admin\Desktop\big_pos\backend\node_modules\express\lib\response.js:252:15)
+    at C:\Users\Admin\Desktop\big_pos\backend\src\controllers\storeController.ts:1148:21
+    at Generator.next (<anonymous>)
+    at fulfilled (C:\Users\Admin\Desktop\big_pos\backend\src\controllers\storeController.ts:38:58)\n

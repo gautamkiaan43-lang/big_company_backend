@@ -1,0 +1,1160 @@
+{
+	"info": {
+		"_postman_id": "b3e04567-8901-2345-6789-abcdef012345",
+		"name": "Big Company API",
+		"description": "Comprehensive API collection for Big Company Backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Consumer App",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Login",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"phone\": \"0987654321\",\n    \"pin\": \"1234\",\n    \"role\": \"consumer\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"auth",
+										"login"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Register",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"phone\": \"0987654321\",\n    \"pin\": \"1234\",\n    \"role\": \"consumer\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/auth/register",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"auth",
+										"register"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Password",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"old_password\": \"oldpass\",\n    \"new_password\": \"newpass\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/auth/update-password",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"auth",
+										"update-password"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update PIN",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"old_pin\": \"1234\",\n    \"new_pin\": \"4321\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/auth/update-pin",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"auth",
+										"update-pin"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Profile & Settings",
+					"item": [
+						{
+							"name": "Get My Profile",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/customers/me",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"customers",
+										"me"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Profile",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"first_name\": \"Johnny\",\n    \"email\": \"john@example.com\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/customers/me",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"customers",
+										"me"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Preferences",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/customers/me/preferences",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"customers",
+										"me",
+										"preferences"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Store & Products",
+					"item": [
+						{
+							"name": "Get Retailers (Public)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/store/retailers",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"retailers"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Categories",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/categories",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"categories"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Products (Requires Linking)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/products?retailerId=RETAILER_ID",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"products"
+									],
+									"query": [
+										{
+											"key": "retailerId",
+											"value": "RETAILER_ID",
+											"description": "Optional filter"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Orders",
+					"item": [
+						{
+							"name": "Get My Orders",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/customers/me/orders",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"customers",
+										"me",
+										"orders"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Order",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"retailerId\": \"RETAILER_ID\",\n    \"items\": [\n        { \"productId\": \"PROD_ID\", \"quantity\": 2 }\n    ],\n    \"paymentMethod\": \"WALLET\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/orders",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"orders"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Gas Services",
+					"item": [
+						{
+							"name": "Get Gas Meters",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/gas/meters",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"gas",
+										"meters"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add Gas Meter",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"meterNumber\": \"123456789\",\n    \"nickname\": \"Home\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/gas/meters",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"gas",
+										"meters"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Topup Gas",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"meterId\": \"METER_ID\",\n    \"amount\": 500,\n    \"paymentMethod\": \"WALLET\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/store/gas/topup",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"gas",
+										"topup"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Wallet",
+					"item": [
+						{
+							"name": "Get Wallets",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/wallets",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"wallets"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Transactions",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/store/wallets/transactions",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"store",
+										"wallets",
+										"transactions"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Retailer App",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Login",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"retailer@example.com\",\n    \"password\": \"password123\",\n    \"role\": \"retailer\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/retailer/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"retailer",
+										"auth",
+										"login"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Dashboard & Inventory",
+					"item": [
+						{
+							"name": "Get Dashboard",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/retailer/dashboard",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"retailer",
+										"dashboard"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Inventory",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/retailer/inventory",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"retailer",
+										"inventory"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "POS & Sales",
+					"item": [
+						{
+							"name": "Scan Barcode",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"barcode\": \"123456789\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/retailer/pos/scan",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"retailer",
+										"pos",
+										"scan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Sale",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"items\": [\n        { \"productId\": \"PROD_ID\", \"quantity\": 1 }\n    ],\n    \"paymentMethod\": \"CASH\",\n    \"customerId\": \"OPTIONAL_CUST_ID\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/retailer/pos/sale",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"retailer",
+										"pos",
+										"sale"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Wholesaler App",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Login",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"wholesaler@example.com\",\n    \"password\": \"password123\",\n    \"role\": \"wholesaler\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/wholesaler/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"wholesaler",
+										"auth",
+										"login"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Dashboard",
+					"item": [
+						{
+							"name": "Get Dashboard Stats",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/wholesaler/dashboard",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"wholesaler",
+										"dashboard"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Admin Dashboard",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Login",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"admin@bigcompany.com\",\n    \"password\": \"adminpass\",\n    \"role\": \"admin\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"auth",
+										"login"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Users",
+					"item": [
+						{
+							"name": "Get All Customers",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/customers",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"customers"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Retailers",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/retailers",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"retailers"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Verify Retailer",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/retailers/:id/verify",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"retailers",
+										":id",
+										"verify"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "RETAILER_ID"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Employee App",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Login",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"employee@example.com\",\n    \"password\": \"empPass\",\n    \"role\": \"employee\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/employee/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"employee",
+										"auth",
+										"login"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Attendance",
+					"item": [
+						{
+							"name": "Check In",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"location\": \"Warehouse 1\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/employee/check-in",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"employee",
+										"check-in"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Check Out",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/employee/check-out",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"employee",
+										"check-out"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Training",
+					"item": [
+						{
+							"name": "Get Courses",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/employee/training/courses",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"employee",
+										"training",
+										"courses"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Shared / Common",
+			"item": [
+				{
+					"name": "NFC",
+					"item": [
+						{
+							"name": "Get My Cards",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/nfc/cards",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"nfc",
+										"cards"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Rewards",
+					"item": [
+						{
+							"name": "Get Balance",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/rewards/balance",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"rewards",
+										"balance"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Webhooks",
+					"item": [
+						{
+							"name": "PalmKash Pattern",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/webhooks/palmkash",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"webhooks",
+										"palmkash"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Debug",
+					"item": [
+						{
+							"name": "Health Check",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/debug",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"debug"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "List Routes",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/debug/routes",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"debug",
+										"routes"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:9001",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "YOUR_JWT_TOKEN",
+			"type": "string"
+		}
+	]
+}

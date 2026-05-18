@@ -1,0 +1,29 @@
+﻿[dotenv@17.2.3] injecting env (27) from .env -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+
+--- Testing VendingMeter with {"MeterNo":"MTR-399703","Amount":500} ---
+Status: 200
+Data: [
+  {
+    "Company_name": "Data error",
+    "Username": "",
+    "Customer_id": "",
+    "Customer_name": "",
+    "Customer_address": "",
+    "Customer_phone": "",
+    "Meter_id": "",
+    "Meter_type": "",
+    "Total_paid": "",
+    "Total_unit": "",
+    "Unit": "",
+    "Price": "",
+    "Price_unit": "",
+    "Price_Categories": "",
+    "Rate": "",
+    "Token": "",
+    "Gen_time": "0001.01.01"
+  }
+]
+
+--- Testing VendingMeter with {"MeterNo":"MTR-399703","is_vend_by_unit":0,"Amount":500} ---
+Status: 200
+Data: []

@@ -1,0 +1,761 @@
+{
+  "info": {
+    "_postman_id": "b6fa36fa-d2ea-4691-b450-aca1235a0df5",
+    "name": "Big Company Auth API",
+    "description": "Authentication & Authorization APIs only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Consumer App",
+      "item": [
+        {
+          "name": "POST /store/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/store/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "store",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /store/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/store/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "store",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\",\n    \"first_name\": \"string\",\n    \"last_name\": \"string\",\n    \"business_name\": \"string\",\n    \"shop_name\": \"string\",\n    \"company_name\": \"string\",\n    \"address\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /store/auth/update-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/store/auth/update-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "store",
+                "auth",
+                "update-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"string\",\n    \"new_password\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /store/auth/update-pin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/store/auth/update-pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "store",
+                "auth",
+                "update-pin"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_pin\": \"string\",\n    \"new_pin\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /store/auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/store/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "store",
+                "auth",
+                "logout"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Retailer App",
+      "item": [
+        {
+          "name": "POST /retailer/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/retailer/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "retailer",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /retailer/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/retailer/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "retailer",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\",\n    \"first_name\": \"string\",\n    \"last_name\": \"string\",\n    \"business_name\": \"string\",\n    \"shop_name\": \"string\",\n    \"company_name\": \"string\",\n    \"address\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /retailer/auth/update-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/retailer/auth/update-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "retailer",
+                "auth",
+                "update-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"string\",\n    \"new_password\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /retailer/auth/update-pin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/retailer/auth/update-pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "retailer",
+                "auth",
+                "update-pin"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_pin\": \"string\",\n    \"new_pin\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wholesaler App",
+      "item": [
+        {
+          "name": "POST /wholesaler/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/wholesaler/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wholesaler",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /wholesaler/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/wholesaler/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wholesaler",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\",\n    \"first_name\": \"string\",\n    \"last_name\": \"string\",\n    \"business_name\": \"string\",\n    \"shop_name\": \"string\",\n    \"company_name\": \"string\",\n    \"address\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /wholesaler/auth/update-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/wholesaler/auth/update-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wholesaler",
+                "auth",
+                "update-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"string\",\n    \"new_password\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /wholesaler/auth/update-pin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/wholesaler/auth/update-pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wholesaler",
+                "auth",
+                "update-pin"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_pin\": \"string\",\n    \"new_pin\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "item": [
+        {
+          "name": "POST /admin/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\",\n    \"first_name\": \"string\",\n    \"last_name\": \"string\",\n    \"business_name\": \"string\",\n    \"shop_name\": \"string\",\n    \"company_name\": \"string\",\n    \"address\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/auth/update-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/auth/update-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "update-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"string\",\n    \"new_password\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/auth/update-pin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/auth/update-pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "update-pin"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_pin\": \"string\",\n    \"new_pin\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Employee App",
+      "item": [
+        {
+          "name": "POST /employee/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employee/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employee",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /employee/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employee/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employee",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"string\",\n    \"password\": \"string\",\n    \"phone\": \"string\",\n    \"pin\": \"string\",\n    \"role\": \"string\",\n    \"first_name\": \"string\",\n    \"last_name\": \"string\",\n    \"business_name\": \"string\",\n    \"shop_name\": \"string\",\n    \"company_name\": \"string\",\n    \"address\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /employee/auth/update-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employee/auth/update-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employee",
+                "auth",
+                "update-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"string\",\n    \"new_password\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /employee/auth/update-pin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employee/auth/update-pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employee",
+                "auth",
+                "update-pin"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_pin\": \"string\",\n    \"new_pin\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:9001",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "TOKEN",
+      "type": "string"
+    }
+  ]
+}

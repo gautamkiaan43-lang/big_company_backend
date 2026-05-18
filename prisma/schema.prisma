@@ -1,0 +1,1086 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URI")
+  relationMode = "prisma"
+}
+
+
+
+model User {
+  id                               Int                @id @default(autoincrement())
+  email                            String?            @unique
+  phone                            String?            @unique
+  password                         String?
+  pin                              String?
+  name                             String?
+  role                             Role
+  isActive                         Boolean            @default(true)
+  createdAt                        DateTime           @default(now())
+  updatedAt                        DateTime           @updatedAt
+  isFirstLogin                     Boolean            @default(true)
+  tempPassword                     String?
+  consumerProfile    ConsumerProfile?
+  employeeProfile    EmployeeProfile?
+  message_message_receiverIdTouser Message[]          @relation("message_receiverIdTouser")
+  message_message_senderIdTouser   Message[]          @relation("message_senderIdTouser")
+  notifications                    Notification[]
+  retailerProfile                  RetailerProfile?
+  wholesalerProfile                WholesalerProfile?
+
+  @@map("user")
+}
+
+model Attendance {
+  id              Int             @id @default(autoincrement())
+  employeeId      Int
+  date            DateTime
+  checkIn         DateTime
+  checkOut        DateTime?
+  status          String
+  location        String?
+  workHours       Float           @default(0)
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  employeeProfile EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: NoAction, map: "Attendance_employeeId_fkey")
+
+  @@index([employeeId], map: "Attendance_employeeId_fkey")
+  @@map("attendance")
+}
+
+model Branch {
+  id              Int             @id @default(autoincrement())
+  retailerId      Int
+  name            String
+  location        String?
+  retailerProfile RetailerProfile @relation(fields: [retailerId], references: [id], onDelete: NoAction, map: "Branch_retailerId_fkey")
+  sales           Sale[]
+  terminals       Terminal[]
+
+  @@index([retailerId], map: "Branch_retailerId_fkey")
+  @@map("branch")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique(map: "Category_code_key")
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@map("category")
+}
+
+model Deal {
+  id                Int       @id @default(autoincrement())
+  title             String
+  clientName        String
+  value             Float
+  stage             String
+  probability       Float
+  owner             String
+  expectedCloseDate DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("deal")
+}
+
+model Loan {
+  id              Int             @id @default(autoincrement())
+  consumerId      Int
+  amount          Float
+  status          String
+  dueDate         DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  consumerProfile ConsumerProfile @relation(fields: [consumerId], references: [id], onDelete: NoAction, map: "Loan_consumerId_fkey")
+
+  @@index([consumerId], map: "Loan_consumerId_fkey")
+  @@map("loan")
+}
+
+model Message {
+  id                            Int      @id @default(autoincrement())
+  senderId                      Int
+  receiverId                    Int
+  content                       String
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  User_Message_receiverIdTouser User     @relation("message_receiverIdTouser", fields: [receiverId], references: [id], onDelete: NoAction, map: "Message_receiverId_fkey")
+  User_Message_senderIdTouser   User     @relation("message_senderIdTouser", fields: [senderId], references: [id], onDelete: NoAction, map: "Message_senderId_fkey")
+
+  @@index([receiverId], map: "Message_receiverId_fkey")
+  @@index([senderId], map: "Message_senderId_fkey")
+  @@map("message")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, map: "Notification_userId_fkey")
+
+  @@index([userId], map: "Notification_userId_fkey")
+  @@map("notification")
+}
+
+model Order {
+  id                Int               @id @default(autoincrement())
+  retailerId        Int
+  wholesalerId      Int
+  status            String
+  paymentMethod     String            @default("wallet")
+  totalAmount       Float
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  retailerProfile   RetailerProfile   @relation(fields: [retailerId], references: [id], onDelete: NoAction, map: "Order_retailerId_fkey")
+  wholesalerProfile WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: NoAction, map: "Order_wholesalerId_fkey")
+  orderItems        OrderItem[]
+  profitInvoice     ProfitInvoice?
+
+  // NEW TRACKING FIELDS
+  shipperName       String?
+  shipperPhone      String?
+  vehiclePlate      String?
+  rejectionReason   String?
+  cancellationReason String?
+  notes             String?
+
+  @@index([retailerId], map: "Order_retailerId_fkey")
+  @@index([wholesalerId], map: "Order_wholesalerId_fkey")
+  @@map("order")
+}
+
+model Product {
+  id                Int                @id @default(autoincrement())
+  name              String
+  description       String?
+  sku               String?
+  category          String
+  price             Float
+  costPrice         Float?
+  retailerPrice     Float?             @default(0)
+  stock             Int                @default(0)
+  retailerId        Int?
+  wholesalerId      Int?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  barcode           String?
+  invoiceNumber     String?
+  lowStockThreshold Int?
+  unit              String?
+  image             String?
+  status            String             @default("active")
+  supplierId        Int?
+  orderItems        OrderItem[]
+  retailerProfile   RetailerProfile?   @relation(fields: [retailerId], references: [id], map: "Product_retailerId_fkey")
+  supplier          Supplier?          @relation(fields: [supplierId], references: [id], map: "Product_supplierId_fkey")
+  wholesalerProfile WholesalerProfile? @relation(fields: [wholesalerId], references: [id], map: "Product_wholesalerId_fkey")
+  saleItems         SaleItem[]
+
+  @@index([retailerId], map: "Product_retailerId_fkey")
+  @@index([supplierId], map: "Product_supplierId_fkey")
+  @@index([wholesalerId], map: "Product_wholesalerId_fkey")
+  @@map("product")
+}
+
+model Sale {
+  id              Int              @id @default(autoincrement())
+  retailerId      Int
+  consumerId      Int?
+  branchId        Int?
+  status          String
+  totalAmount     Float
+  paymentMethod   String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  branch          Branch?          @relation(fields: [branchId], references: [id], map: "Sale_branchId_fkey")
+  consumerProfile ConsumerProfile? @relation(fields: [consumerId], references: [id], map: "Sale_consumerId_fkey")
+  retailerProfile RetailerProfile  @relation(fields: [retailerId], references: [id], onDelete: NoAction, map: "Sale_retailerId_fkey")
+  saleItems       SaleItem[]
+  gasRewards      GasReward[]
+  meterId         String?
+
+  // NEW TRACKING FIELDS
+  shipperName     String?
+  shipperPhone    String?
+  vehiclePlate    String?
+  rejectionReason String?
+  cancellationReason String?
+  notes             String?
+
+  @@index([branchId], map: "Sale_branchId_fkey")
+  @@index([consumerId], map: "Sale_consumerId_fkey")
+  @@index([retailerId], map: "Sale_retailerId_fkey")
+  @@map("sale")
+}
+
+model Supplier {
+  id                Int               @id @default(autoincrement())
+  name              String
+  contactPerson     String?
+  phone             String?
+  email             String?
+  address           String?
+  status            String            @default("active")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  wholesalerId      Int
+  products          Product[]
+  wholesalerProfile WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: NoAction, map: "Supplier_wholesalerId_fkey")
+  supplierPayments  SupplierPayment[]
+
+  @@index([wholesalerId], map: "Supplier_wholesalerId_fkey")
+  @@map("supplier")
+}
+
+model Terminal {
+  id           Int    @id @default(autoincrement())
+  branchId     Int
+  name         String
+  serialNumber String @unique(map: "Terminal_serialNumber_key")
+  branch       Branch @relation(fields: [branchId], references: [id], onDelete: NoAction, map: "Terminal_branchId_fkey")
+
+  @@index([branchId], map: "Terminal_branchId_fkey")
+  @@map("terminal")
+}
+
+model Wallet {
+  id                Int                 @id @default(autoincrement())
+  consumerId        Int
+  type              String
+  balance           Float               @default(0)
+  currency          String              @default("RWF")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  consumerProfile   ConsumerProfile     @relation(fields: [consumerId], references: [id], onDelete: NoAction, map: "Wallet_consumerId_fkey")
+  walletTransactions WalletTransaction[]
+
+  @@unique([consumerId, type], map: "Wallet_consumerId_type_key")
+  @@map("wallet")
+}
+
+model Project {
+  id            Int              @id @default(autoincrement())
+  name          String
+  description   String?          @db.Text
+  status        project_status   @default(NOT_STARTED)
+  priority      project_priority @default(MEDIUM)
+  progress      Int              @default(0)
+  startDate     DateTime
+  endDate       DateTime?
+  dueDate       DateTime
+  client        String?
+  managerId     Int
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  manager          EmployeeProfile  @relation("ProjectManager", fields: [managerId], references: [id], onDelete: NoAction, map: "Project_managerId_fkey")
+  projectMembers   ProjectMember[]
+  tasks            Task[]
+
+  @@index([managerId], map: "Project_managerId_fkey")
+  @@map("project")
+}
+
+model Task {
+  id             Int              @id @default(autoincrement())
+  projectId      Int
+  title          String
+  description    String?          @db.Text
+  status         task_status      @default(TODO)
+  assignedToId   Int?
+  dueDate        DateTime?
+  estimatedHours Float?
+  actualHours    Float            @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  assignedTo     EmployeeProfile? @relation(fields: [assignedToId], references: [id], map: "Task_assignedToId_fkey")
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, map: "Task_projectId_fkey")
+
+  @@index([projectId], map: "Task_projectId_fkey")
+  @@index([assignedToId], map: "Task_assignedToId_fkey")
+  @@map("task")
+}
+
+model Course {
+  id               Int                @id @default(autoincrement())
+  title            String
+  description      String?            @db.Text
+  category         String
+  level            course_level       @default(BEGINNER)
+  duration         Int
+  instructor       String
+  totalLessons     Int
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  enrollments CourseEnrollment[]
+  lessons           Lesson[]
+
+  @@map("course")
+}
+
+model Lesson {
+  id             Int              @id @default(autoincrement())
+  courseId       Int
+  title          String
+  description    String?          @db.Text
+  order          Int
+  duration       Int
+  content        String?          @db.Text
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "Lesson_courseId_fkey")
+  lessonProgress LessonProgress[]
+
+  @@index([courseId], map: "Lesson_courseId_fkey")
+  @@map("lesson")
+}
+
+model BillPayment {
+  id                Int             @id @default(autoincrement())
+  employeeId        Int
+  companyName       String
+  companyType       String
+  accountNumber     String
+  accountHolderName String?
+  monthlyAmount     Float
+  paymentDay        Int
+  isActive          Boolean         @default(true)
+  startDate         DateTime
+  endDate           DateTime?
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  employeeProfile   EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: NoAction, map: "BillPayment_employeeId_fkey")
+
+  @@index([employeeId], map: "BillPayment_employeeId_fkey")
+  @@map("billpayment")
+}
+
+model ConsumerProfile {
+  id               Int               @id @default(autoincrement())
+  userId           Int               @unique(map: "ConsumerProfile_userId_key")
+  walletBalance    Float             @default(0)
+  rewardsPoints    Float             @default(0)
+  address          String?
+  fullName         String?
+  isVerified       Boolean           @default(false)  
+  landmark         String?
+  membershipType   String            @default("standard")
+  gasRewardWalletId String?          @unique
+  linkedRetailerId Int?              // Enforces ONE Customer -> ONE Retailer linking
+  user             User              @relation(fields: [userId], references: [id], onDelete: NoAction, map: "ConsumerProfile_userId_fkey")
+  linkedRetailer   RetailerProfile?  @relation("RetailerCustomers", fields: [linkedRetailerId], references: [id], map: "ConsumerProfile_linkedRetailerId_fkey")
+  settings         ConsumerSettings?
+  customerOrders   CustomerOrder[]
+  customerLinkRequests CustomerLinkRequest[] @relation("CustomerLinkRequests")
+  gasMeters        GasMeter[]
+  gasRewards       GasReward[]
+  gasTopups        GasTopup[]
+  loans            Loan[]
+  nfcCards         NfcCard[]
+  sales            Sale[]
+  wallets          Wallet[]
+
+  @@index([linkedRetailerId], map: "ConsumerProfile_linkedRetailerId_fkey")
+  @@map("consumerprofile")
+}
+
+model ConsumerSettings {
+  id                 Int             @id @default(autoincrement())
+  consumerId         Int             @unique(map: "consumerSettings_consumerId_unique")
+  pushNotifications  Boolean         @default(true)
+  emailNotifications Boolean         @default(true)
+  smsNotifications   Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+  consumerProfile    ConsumerProfile @relation(fields: [consumerId], references: [id], onDelete: NoAction, map: "consumerSettings_consumerId_fkey")
+
+  @@map("consumersettings")
+}
+
+model CourseEnrollment {
+  id              Int                     @id @default(autoincrement())
+  courseId        Int
+  employeeId      Int
+  status          courseenrollment_status @default(NOT_STARTED)
+  progress        Int                     @default(0)
+  enrolledAt      DateTime                @default(now())
+  completedAt     DateTime?
+  certificateUrl  String?
+  course          Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "CourseEnrollment_courseId_fkey")
+  employeeProfile EmployeeProfile         @relation(fields: [employeeId], references: [id], onDelete: Cascade, map: "CourseEnrollment_employeeId_fkey")
+  lessonProgress  LessonProgress[]
+
+  @@unique([courseId, employeeId], map: "CourseEnrollment_courseId_employeeId_key")
+  @@index([courseId], map: "CourseEnrollment_courseId_fkey")
+  @@index([employeeId], map: "CourseEnrollment_employeeId_fkey")
+  @@map("courseenrollment")
+}
+
+model CreditRequest {
+  id              Int             @id @default(autoincrement())
+  retailerId      Int
+  amount          Float
+  reason          String?
+  status          String          @default("pending")
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  retailerProfile RetailerProfile @relation(fields: [retailerId], references: [id], onDelete: NoAction, map: "CreditRequest_retailerId_fkey")
+
+  @@index([retailerId], map: "CreditRequest_retailerId_fkey")
+  @@map("creditrequest")
+}
+
+model CustomerOrder {
+  id              Int             @id @default(autoincrement())
+  consumerId      Int
+  orderType       String
+  status          String
+  amount          Float
+  currency        String          @default("RWF")
+  items           String?         @db.LongText
+  metadata        String?         @db.LongText
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  consumerProfile ConsumerProfile @relation(fields: [consumerId], references: [id], onDelete: NoAction, map: "CustomerOrder_consumerId_fkey")
+
+  // NEW TRACKING FIELDS
+  shipperName     String?
+  shipperPhone    String?
+  vehiclePlate    String?
+  rejectionReason String?
+  cancellationReason String?
+  notes             String?
+
+  @@index([consumerId], map: "CustomerOrder_consumerId_fkey")
+  @@map("customerorder")
+}
+
+model EmployeeProfile {
+  id                Int                @id @default(autoincrement())
+  userId            Int                @unique(map: "EmployeeProfile_userId_key")
+  employeeNumber    String             @unique(map: "EmployeeProfile_employeeNumber_key")
+  department        String
+  position          String
+  bankAccount       String?
+  joiningDate       DateTime           @default(now())
+  salary            Float              @default(0)
+  status            String             @default("active")
+  updatedAt         DateTime           @default(now()) @updatedAt
+  attendances       Attendance[]
+  billPayments      BillPayment[]
+  enrollments CourseEnrollment[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade, map: "EmployeeProfile_userId_fkey")
+  leaveRequests     LeaveRequest[]
+  managedProjects   Project[]          @relation("ProjectManager")
+  projectMembers    ProjectMember[]
+  assignedTasks     Task[]
+
+  @@map("employeeprofile")
+}
+
+model GasMeter {
+  id              Int             @id @default(autoincrement())
+  consumerId      Int
+  meterNumber     String          @unique(map: "GasMeter_meterNumber_key")
+  meterKey        String?         // METER_KEY (16-char hex devEui) used by Energyy GPRS API
+  imei            String?         // Store the mapping to IMEI for GPRS remote push
+  isGprs          Boolean         @default(false)
+  serialNo        String?         // Serial number from meter documentation
+  meterType       String?         @default("PIPING") // 'TOKEN' or 'PIPING'
+  aliasName       String?
+  ownerName       String?
+  ownerPhone      String?
+  currentUnits    Float           @default(0)
+  status          String          @default("active")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  consumerProfile ConsumerProfile @relation(fields: [consumerId], references: [id], onDelete: NoAction, map: "GasMeter_consumerId_fkey")
+  gasTopups       GasTopup[]
+
+  @@index([consumerId], map: "GasMeter_consumerId_fkey")
+  @@map("gasmeter")
+}
+
+
+model GasReward {
+  id              Int             @id @default(autoincrement())
+  consumerId      Int
+  units           Float
+  source          String
+  reference       String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  consumerProfile ConsumerProfile @relation(fields: [consumerId], references: [id], onDelete: NoAction, map: "GasReward_consumerId_fkey")
+  sale            Sale?           @relation(fields: [saleId], references: [id], onDelete: NoAction, map: "GasReward_saleId_fkey")
+  saleId          Int?
+  meterId         String?
+  profitAmount    Float?
+
+  @@index([consumerId], map: "GasReward_consumerId_fkey")
+  @@index([saleId], map: "GasReward_saleId_fkey")
+  @@map("gasreward")
+}
+
+model GasTopup {
+  id              Int             @id @default(autoincrement())
+  consumerId      Int
+  meterId         Int
+  amount          Float
+  units           Float
+  currency        String          @default("RWF")
+  status          String          @default("completed")
+  orderId         String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  consumerProfile ConsumerProfile @relation(fields: [consumerId], references: [id], onDelete: NoAction, map: "GasTopup_consumerId_fkey")
+  gasMeter        GasMeter        @relation(fields: [meterId], references: [id], onDelete: NoAction, map: "GasTopup_meterId_fkey")
+
+  @@index([consumerId], map: "GasTopup_consumerId_fkey")
+  @@index([meterId], map: "GasTopup_meterId_fkey")
+  @@map("gastopup")
+}
+
+model JobApplication {
+  id          Int        @id @default(autoincrement())
+  jobId       Int
+  name        String
+  email       String
+  phone       String
+  resumeUrl   String?
+  status      String     @default("applied")
+  appliedDate DateTime   @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  jobPosting  JobPosting @relation(fields: [jobId], references: [id], onDelete: NoAction, map: "JobApplication_jobId_fkey")
+
+  @@index([jobId], map: "JobApplication_jobId_fkey")
+  @@map("jobapplication")
+}
+
+model JobPosting {
+  id              Int              @id @default(autoincrement())
+  title           String
+  department      String
+  type            String
+  salaryMin       Float
+  salaryMax       Float
+  location        String
+  description     String           @db.Text
+  status          String           @default("open")
+  postedDate      DateTime         @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  jobApplications JobApplication[]
+
+  @@map("jobposting")
+}
+
+model LeaveRequest {
+  id              Int             @id @default(autoincrement())
+  employeeId      Int
+  type            String
+  startDate       DateTime
+  endDate         DateTime
+  reason          String?
+  status          String          @default("pending")
+  approvedBy      String?
+  rejectionReason String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  employeeProfile EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: NoAction, map: "LeaveRequest_employeeId_fkey")
+
+  @@index([employeeId], map: "LeaveRequest_employeeId_fkey")
+  @@map("leaverequest")
+}
+
+model LessonProgress {
+  id               Int              @id @default(autoincrement())
+  enrollmentId     Int
+  lessonId         Int
+  completed        Boolean          @default(false)
+  completedAt      DateTime?
+  courseEnrollment CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade, map: "LessonProgress_enrollmentId_fkey")
+  lesson           Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade, map: "LessonProgress_lessonId_fkey")
+
+  @@unique([enrollmentId, lessonId], map: "LessonProgress_enrollmentId_lessonId_key")
+  @@index([enrollmentId], map: "LessonProgress_enrollmentId_fkey")
+  @@index([lessonId], map: "LessonProgress_lessonId_fkey")
+  @@map("lessonprogress")
+}
+
+model NfcCard {
+  id              Int              @id @default(autoincrement())
+  uid             String           @unique(map: "NfcCard_uid_key")
+  pin             String?
+  status          String
+  consumerId      Int?
+  retailerId      Int?
+  balance         Float            @default(0)
+  cardType        String?
+  cardholderName  String?
+  nationalId      String?
+  phone           String?
+  email           String?
+  province        String?
+  district        String?
+  sector          String?
+  cell            String?
+  streetAddress   String?
+  landmark        String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+  consumerProfile ConsumerProfile? @relation(fields: [consumerId], references: [id], map: "NfcCard_consumerId_fkey")
+  retailerProfile RetailerProfile? @relation(fields: [retailerId], references: [id], map: "NfcCard_retailerId_fkey")
+
+  @@index([consumerId], map: "NfcCard_consumerId_fkey")
+  @@index([retailerId], map: "NfcCard_retailerId_fkey")
+  @@map("nfccard")
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Float
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: NoAction, map: "OrderItem_orderId_fkey")
+  product   Product @relation(fields: [productId], references: [id], onDelete: NoAction, map: "OrderItem_productId_fkey")
+
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([productId], map: "OrderItem_productId_fkey")
+  @@map("orderitem")
+}
+
+model ProfitInvoice {
+  id            Int      @id @default(autoincrement())
+  orderId       Int      @unique(map: "ProfitInvoice_orderId_key")
+  profitAmount  Float
+  invoiceNumber String   @unique(map: "ProfitInvoice_invoiceNumber_key")
+  generatedAt   DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: NoAction, map: "ProfitInvoice_orderId_fkey")
+
+  @@map("profitinvoice")
+}
+
+model ProjectMember {
+  id              Int             @id @default(autoincrement())
+  projectId       Int
+  employeeId      Int
+  role            String
+  joinedAt        DateTime        @default(now())
+  employeeProfile EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade, map: "ProjectMember_employeeId_fkey")
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade, map: "ProjectMember_projectId_fkey")
+
+  @@unique([projectId, employeeId], map: "ProjectMember_projectId_employeeId_key")
+  @@index([employeeId], map: "ProjectMember_employeeId_fkey")
+  @@index([projectId], map: "ProjectMember_projectId_fkey")
+  @@map("projectmember")
+}
+
+model RetailerCredit {
+  id              Int             @id @default(autoincrement())
+  retailerId      Int             @unique(map: "RetailerCredit_retailerId_key")
+  creditLimit     Float           @default(0)
+  usedCredit      Float           @default(0)
+  availableCredit Float           @default(0)
+  updatedAt       DateTime        @default(now()) @updatedAt
+  retailerProfile RetailerProfile @relation(fields: [retailerId], references: [id], onDelete: NoAction, map: "RetailerCredit_retailerId_fkey")
+
+  @@map("retailercredit")
+}
+
+model RetailerProfile {
+  id                  Int                  @id @default(autoincrement())
+  userId              Int                  @unique(map: "retailerProfile_userId_key")
+  shopName            String
+  address             String?
+  province            String?
+  district            String?
+  sector              String?
+  cell                String?
+  creditLimit         Float                @default(0)
+  walletBalance       Float                @default(0)
+  isVerified          Boolean              @default(false)
+  linkedWholesalerId  Int?                 // Enforces ONE Retailer -> ONE Wholesaler linking
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now()) @updatedAt
+  branches            Branch[]
+  creditRequests      CreditRequest[]
+  nfcCards            NfcCard[]
+  orders              Order[]
+  inventory           Product[]
+  credit              RetailerCredit?
+  user                User                 @relation(fields: [userId], references: [id], onDelete: NoAction, map: "retailerProfile_userId_fkey")
+  linkedWholesaler    WholesalerProfile?   @relation("WholesalerRetailers", fields: [linkedWholesalerId], references: [id], map: "RetailerProfile_linkedWholesalerId_fkey")
+  sales               Sale[]
+  settlementInvoices  SettlementInvoice[]  @relation("RetailerInvoices")
+  walletTransactions  WalletTransaction[]
+
+  @@index([linkedWholesalerId], map: "RetailerProfile_linkedWholesalerId_fkey")
+  @@map("retailerprofile")
+
+  linkRequests              LinkRequest[]            @relation("RetailerLinkRequests")
+  linkedCustomers           ConsumerProfile[]        @relation("RetailerCustomers")
+  customerLinkRequests      CustomerLinkRequest[]    @relation("RetailerCustomerLinkRequests")
+}
+
+// Link Request - Retailer requests to be linked with a Wholesaler
+model LinkRequest {
+  id              Int               @id @default(autoincrement())
+  retailerId      Int
+  wholesalerId    Int
+  status          String            @default("pending") // pending, approved, rejected
+  message         String?           // Optional message from retailer
+  rejectionReason String?           // Reason if rejected
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  respondedAt     DateTime?         // When wholesaler responded
+
+  retailer        RetailerProfile   @relation("RetailerLinkRequests", fields: [retailerId], references: [id], onDelete: Cascade)
+  wholesaler      WholesalerProfile @relation("WholesalerLinkRequests", fields: [wholesalerId], references: [id], onDelete: Cascade)
+
+  @@unique([retailerId, wholesalerId]) // One request per retailer-wholesaler pair
+  @@index([wholesalerId])
+  @@map("linkrequest")
+}
+
+// Customer Link Request - Customer requests to be linked with a Retailer
+model CustomerLinkRequest {
+  id              Int               @id @default(autoincrement())
+  customerId      Int
+  retailerId      Int
+  status          String            @default("pending") // pending, approved, rejected
+  message         String?           // Optional message from customer
+  rejectionReason String?           // Reason if rejected
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  respondedAt     DateTime?         // When retailer responded
+
+  customer        ConsumerProfile   @relation("CustomerLinkRequests", fields: [customerId], references: [id], onDelete: Cascade)
+  retailer        RetailerProfile   @relation("RetailerCustomerLinkRequests", fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, retailerId]) // One request per customer-retailer pair
+  @@index([retailerId])
+  @@map("customerlinkrequest")
+}
+
+model SaleItem {
+  id        Int     @id @default(autoincrement())
+  saleId    Int
+  productId Int
+  quantity  Int
+  price     Float
+  product   Product @relation(fields: [productId], references: [id], onDelete: NoAction, map: "SaleItem_productId_fkey")
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: NoAction, map: "SaleItem_saleId_fkey")
+
+  @@index([productId], map: "SaleItem_productId_fkey")
+  @@index([saleId], map: "SaleItem_saleId_fkey")
+  @@map("saleitem")
+}
+
+model SupplierPayment {
+  id                Int               @id @default(autoincrement())
+  supplierId        Int
+  amount            Float
+  paymentDate       DateTime
+  reference         String?
+  status            String            @default("completed")
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @default(now()) @updatedAt
+  wholesalerId      Int
+  supplier          Supplier          @relation(fields: [supplierId], references: [id], onDelete: NoAction, map: "SupplierPayment_supplierId_fkey")
+  wholesalerProfile WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: NoAction, map: "SupplierPayment_wholesalerId_fkey")
+
+  @@index([supplierId], map: "SupplierPayment_supplierId_fkey")
+  @@index([wholesalerId], map: "SupplierPayment_wholesalerId_fkey")
+  @@map("supplierpayment")
+}
+
+model SystemConfig {
+  id                  Int      @id @default(autoincrement())
+  retailerShare       Float    @default(60)
+  companyShare        Float    @default(28)
+  gasRewardShare      Float    @default(12)
+  gasPricePerM3       Float    @default(850)
+  minGasTopup         Float    @default(500)
+  maxGasTopup         Float    @default(100000)
+  minWalletTopup      Float    @default(500)
+  maxWalletTopup      Float    @default(500000)
+  maxDailyTransaction Float    @default(1000000)
+  maxCreditLimit      Float    @default(500000)
+  
+  // Loan Interest Configuration
+  customerLoanInterest   Float @default(0)
+  retailerLoanInterest   Float @default(0)
+  wholesalerLoanInterest Float @default(0)
+
+  updatedAt           DateTime @default(now()) @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@map("systemconfig")
+}
+
+model GasPricingPlan {
+  id        Int      @id @default(autoincrement())
+  amount    Float
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("gaspricingplan")
+}
+
+model WalletTransaction {
+  id          Int              @id @default(autoincrement())
+  walletId    Int?
+  retailerId  Int?
+  type        String
+  amount      Float
+  description String?
+  reference   String?
+  status      String           @default("completed")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
+  wallet      Wallet?          @relation(fields: [walletId], references: [id], onDelete: NoAction, map: "WalletTransaction_walletId_fkey")
+  retailer    RetailerProfile? @relation(fields: [retailerId], references: [id], onDelete: NoAction, map: "WalletTransaction_retailerId_fkey")
+
+  @@index([walletId], map: "WalletTransaction_walletId_fkey")
+  @@index([retailerId], map: "WalletTransaction_retailerId_fkey")
+  @@map("wallettransaction")
+}
+
+model WholesalerProfile {
+  id                  Int                  @id @default(autoincrement())
+  userId              Int                  @unique(map: "wholesalerProfile_userId_key")
+  companyName         String
+  contactPerson       String?
+  tinNumber           String?
+  address             String?
+  isVerified          Boolean              @default(false)
+  receivedOrders      Order[]
+  inventory           Product[]
+  suppliers           Supplier[]
+  supplierPayments    SupplierPayment[]
+  user                User                 @relation(fields: [userId], references: [id], onDelete: NoAction, map: "wholesalerProfile_userId_fkey")
+  wholesalerSettings  WholesalerSettings?
+  linkedRetailers     RetailerProfile[]    @relation("WholesalerRetailers")
+  settlementInvoices  SettlementInvoice[]  @relation("WholesalerInvoices")
+  linkRequests        LinkRequest[]        @relation("WholesalerLinkRequests")
+
+  @@map("wholesalerprofile")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model WholesalerSettings {
+  id                 Int               @id @default(autoincrement())
+  wholesalerId       Int               @unique(map: "wholesalerSettings_wholesalerId_key")
+  pushNotifications  Boolean           @default(true)
+  emailNotifications Boolean           @default(true)
+  smsNotifications   Boolean           @default(true)
+  ussdAlerts         Boolean           @default(false)
+  ussdBusinessCode   String            @default("WHL001")
+  ussdLanguage       String            @default("en")
+  ussdAutoResponse   Boolean           @default(true)
+  paymentTerms       String            @default("net30")
+  defaultCreditLimit Float             @default(50000)
+  acceptedPayments   String?           @db.LongText
+  receiptPrinter     String            @default("bluetooth")
+  barcodeScanner     String            @default("camera")
+  nfcEnabled         Boolean           @default(true)
+  updatedAt          DateTime          @default(now()) @updatedAt
+  wholesalerProfile  WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: NoAction, map: "wholesalerSettings_wholesalerId_fkey")
+
+  @@map("wholesalersettings")
+}
+
+// Settlement Invoice model for Admin Invoice Management after Monthly Settlement
+model SettlementInvoice {
+  id                  Int                @id @default(autoincrement())
+  invoiceNumber       String             @unique(map: "SettlementInvoice_invoiceNumber_key")
+  partyType           String             // 'retailer' or 'wholesaler'
+  retailerId          Int?
+  wholesalerId        Int?
+  settlementMonth     String             // Format: YYYY-MM
+  totalAmount         Float
+  invoiceFileUrl      String?
+  uploadedBy          Int                // Admin user ID
+  notes               String?            @db.Text
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @default(now()) @updatedAt
+  retailerProfile     RetailerProfile?   @relation("RetailerInvoices", fields: [retailerId], references: [id], map: "SettlementInvoice_retailerId_fkey")
+  wholesalerProfile   WholesalerProfile? @relation("WholesalerInvoices", fields: [wholesalerId], references: [id], map: "SettlementInvoice_wholesalerId_fkey")
+
+  @@index([retailerId], map: "SettlementInvoice_retailerId_fkey")
+  @@index([wholesalerId], map: "SettlementInvoice_wholesalerId_fkey")
+  @@index([settlementMonth], map: "SettlementInvoice_settlementMonth_idx")
+  @@map("settlementinvoice")
+}
+
+// Gas Meter Recharge Transaction - Tracks all meter recharge operations
+model GasRechargeTransaction {
+  id            Int      @id @default(autoincrement())
+  customerId    Int?                              // Optional: linked consumer (null for walk-in)
+  meterNumber   String
+  meterType     String                            // TOKEN or PIPING
+  amount        Float
+  isVendByUnit  Boolean  @default(false)         // Recharge by unit or money
+  tokenValue    String?  @db.Text                // Token string returned for TOKEN meters (nullable for PIPING)
+  apiReference  String?                           // Reference ID returned from the external meter API
+  status        String   @default("PENDING")     // SUCCESS, FAILED, PENDING
+  errorMessage  String?  @db.Text                // Store error details if failed
+  paymentMethod String   @default("wallet")      // wallet, mobile_money, nfc_card
+  operatorId    Int?                              // Optional: ID of the POS operator
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@index([meterNumber])
+  @@index([customerId])
+  @@map("gasrechargetransaction")
+}
+
+enum course_level {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum project_status {
+  NOT_STARTED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum project_priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum task_status {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum Role {
+  consumer
+  retailer
+  wholesaler
+  employee
+  admin
+}
+
+enum courseenrollment_status {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model SystemEmailLog {
+  id                  Int      @id @default(autoincrement())
+  recipientEmail      String?  // Made optional for SMS-only logs
+  recipientPhone      String?  // Added for SMS tracking
+  senderEmail         String   @default("noreply@big.co.rw")
+  subject             String?  
+  templateType        String
+  channel             String   @default("EMAIL") // EMAIL or SMS
+  status              EmailStatus @default(PENDING)
+  retryCount          Int      @default(0)
+  errorMessage        String?  @db.Text
+  messageId           String?  // Internal/External reference
+  externalMessageId   String?  // Message ID from IntouchSMS/Gmail
+  relatedEntityType   String?
+  relatedEntityId     String?
+  cost                Float?   // SMS cost from gateway
+  timestamp           DateTime @default(now())
+
+  @@map("systememaillog")
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  RETRYING
+  PERMANENT_FAILURE
+}
+
+model EmailTemplate {
+  id                Int      @id @default(autoincrement())
+  name              String   @unique // Template ID (e.g., 'CUS-SMS-001')
+  subject           String?  // Optional for SMS
+  content           String   @db.LongText // Body content with {{tags}}
+  description       String?
+  channel           String   @default("EMAIL") // EMAIL or SMS
+  portal            String   @default("CUSTOMER") // CUSTOMER, RETAILER, WHOLESALER
+  triggerName       String?  // Human readable trigger name
+  requiredVariables String?  @db.Text // Comma-separated list
+  optionalVariables String?  @db.Text // Comma-separated list
+  isActive          Boolean  @default(true)
+  version           Int      @default(1)
+  createdBy         String?  // User identifier
+  updatedBy         String?  // User identifier
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("emailtemplate")
+}
+
+model EmailEvent {
+  id           Int      @id @default(autoincrement())
+  eventSlug    String   @unique // e.g., 'retailer-registration', 'low-stock'
+  templateName String   // The name of the EmailTemplate to use
+  description  String?
+  updatedAt    DateTime @updatedAt
+
+  @@map("emailevent")
+}
+
+model News {
+  id               Int      @id @default(autoincrement())
+  title            String
+  shortDescription String   @db.Text
+  fullContent      String   @db.LongText
+  image            String?
+  author           String?
+  status           String   @default("published") // published, hidden
+  publishedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("news")
+}
+
+model Blog {
+  id               Int      @id @default(autoincrement())
+  title            String
+  category         String?
+  blogText         String   @db.LongText
+  image            String?
+  author           String?
+  status           String   @default("published") // published, hidden
+  publishedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("blog")
+}

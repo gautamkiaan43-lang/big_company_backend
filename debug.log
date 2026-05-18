@@ -1,0 +1,37 @@
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: ⚙️  write to custom object with { processEnv: myObject }[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: ⚙️  suppress all logs with { quiet: true }[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: ⚙️  write to custom object with { processEnv: myObject }[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops[0m
+Server is running on port 9000
+--- Logging Started ---
+[dotenv@17.2.3] injecting env (0) from .env [2m-- tip: ⚙️  override existing env vars with { override: true }[0m
+Server is running on port 9001
+[2026-01-09T09:40:03.283Z] GET /admin/retailers
+[2026-01-09T09:40:03.307Z] GET /admin/wholesalers
+[2026-01-09T09:40:03.342Z] GET /admin/wholesalers
+[2026-01-09T09:40:03.346Z] GET /admin/retailers

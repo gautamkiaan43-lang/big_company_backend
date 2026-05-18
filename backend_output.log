@@ -1,0 +1,14 @@
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+--- Server Starting ---
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+Server is running on port 9005
+✅ Database connected successfully
+[2026-02-11T07:38:01.901Z] POST /store/orders
+  Body: {"retailerId":1,"items":[{"productId":6,"quantity":2,"price":500}],"paymentMethod":"wallet","gasRewardWalletId":"GRW-QVOX0ILK","total":1000}
+[2026-02-11T07:39:59.698Z] POST /store/orders
+  Body: {"retailerId":1,"items":[{"productId":6,"quantity":2,"price":500}],"paymentMethod":"wallet","gasRewardWalletId":"GRW-QVOX0ILK","total":1000}
+[2026-02-11T07:42:49.766Z] POST /store/orders
+  Body: {"retailerId":1,"items":[{"productId":6,"quantity":2,"price":500}],"paymentMethod":"wallet","gasRewardWalletId":"GRW-QVOX0ILK","total":1000}
+[2026-02-11T07:44:25.035Z] POST /store/orders
+  Body: {"retailerId":1,"items":[{"productId":6,"quantity":2,"price":500}],"paymentMethod":"wallet","gasRewardWalletId":"GRW-QVOX0ILK","total":1000}

@@ -1,0 +1,157 @@
+{
+	"info": {
+		"_postman_id": "9d8b76df-c167-4d7a-b12e-16e542ef89c9",
+		"name": "Piping Gas Meter Integration",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Login (Get API Token)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "requestParams",
+							"value": "{\"action\":\"lorawanMeter\",\"method\":\"toLogin\",\"params\":{\"username\":\"Rwanda_Kayitare\",\"password\":\"123456\"}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://english.energyy.ucskype.com/api/commonInternal.jsp",
+					"protocol": "http",
+					"host": [
+						"english",
+						"energyy",
+						"ucskype",
+						"com"
+					],
+					"path": [
+						"api",
+						"commonInternal.jsp"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Get Meter Archives Info",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "requestParams",
+							"value": "{\"action\":\"zlMeter\",\"method\":\"getAreaArchiveInfo\",\"apiToken\":\"{{API_TOKEN}}\",\"param\":{\"nbonetNetImei\":\"865395070835176\"}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://english.energyy.ucskype.com/api/commonInternal.jsp",
+					"protocol": "http",
+					"host": [
+						"english",
+						"energyy",
+						"ucskype",
+						"com"
+					],
+					"path": [
+						"api",
+						"commonInternal.jsp"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Ordinary Top-up (Money)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "requestParams",
+							"value": "{\"action\":\"zlMeter\",\"method\":\"remotelyTopUp\",\"apiToken\":\"{{API_TOKEN}}\",\"param\":{\"nbonetNetImei\":\"865395070835176\",\"topUpAmount\":\"500\"}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://english.energyy.ucskype.com/api/commonInternal.jsp",
+					"protocol": "http",
+					"host": [
+						"english",
+						"energyy",
+						"ucskype",
+						"com"
+					],
+					"path": [
+						"api",
+						"commonInternal.jsp"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Push Token",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "requestParams",
+							"value": "{\"action\":\"zlMeter\",\"method\":\"rechargeToken\",\"apiToken\":\"{{API_TOKEN}}\",\"param\":{\"imei\":\"865395070835176\",\"token\":\"66227806853174920938\"}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://english.energyy.ucskype.com/api/commonInternal.jsp",
+					"protocol": "http",
+					"host": [
+						"english",
+						"energyy",
+						"ucskype",
+						"com"
+					],
+					"path": [
+						"api",
+						"commonInternal.jsp"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

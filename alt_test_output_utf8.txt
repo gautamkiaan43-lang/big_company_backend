@@ -1,0 +1,60 @@
+﻿[dotenv@17.2.3] injecting env (27) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+=== Testing Alternative Endpoints for Meter: 399703 ===
+
+--- Testing QueryMeterInfo (/api/QueryMeterInfo) ---
+Status: 200
+Response: [
+  {
+    "Company_name": "BigInnovation",
+    "Username": "BIG",
+    "Customer_id": "",
+    "Customer_name": "",
+    "Customer_address": "",
+    "Customer_phone": "",
+    "Meter_id": "",
+    "Meter_type": "Energy Meter",
+    "Total_paid": "0",
+    "Total_unit": "0",
+    "Total_times": "0",
+    "Unit": "kWh",
+    "Price": "0",
+    "Price_unit": "",
+    "Rate": "0"
+  }
+]
+
+--- Testing Meter Info (/api/Meter/info) ---
+Status: 404
+Response: {
+  "Message": "No HTTP resource was found that matches the request URI 'http://www.server-newv.stronpower.com/api/Meter/info'."
+}
+
+--- Testing Order Recharge (/api/Order/recharge) ---
+Status: 404
+Response: {
+  "Message": "No HTTP resource was found that matches the request URI 'http://www.server-newv.stronpower.com/api/Order/recharge'."
+}
+
+--- Testing VendingMeter (/api/VendingMeter) ---
+Status: 200
+Response: [
+  {
+    "Company_name": "Data error",
+    "Username": "",
+    "Customer_id": "",
+    "Customer_name": "",
+    "Customer_address": "",
+    "Customer_phone": "",
+    "Meter_id": "",
+    "Meter_type": "",
+    "Total_paid": "",
+    "Total_unit": "",
+    "Unit": "",
+    "Price": "",
+    "Price_unit": "",
+    "Price_Categories": "",
+    "Rate": "",
+    "Token": "",
+    "Gen_time": "0001.01.01"
+  }
+]

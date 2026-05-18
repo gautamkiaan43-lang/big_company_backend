@@ -1,0 +1,85 @@
+{
+  "info": {
+    "name": "Piping Gas Meter Lorawan API",
+    "description": "Postman collection for testing the Lorawan Piping Gas Meter API (english.energyy.ucskype.com)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Login API",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "requestParams",
+              "value": "{\"action\":\"lorawanMeter\",\"method\":\"toLogin\",\"params\":{\"username\":\"Rwanda_Kayitare\",\"password\":\"123456\"}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://english.energyy.ucskype.com/api/commonInternal.jsp",
+          "protocol": "http",
+          "host": [
+            "english",
+            "energyy",
+            "ucskype",
+            "com"
+          ],
+          "path": [
+            "api",
+            "commonInternal.jsp"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Recharge API",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "requestParams",
+              "value": "{\"action\":\"lorawanMeter\",\"method\":\"recharge\",\"params\":{\"meterNo\":\"865395070834724\",\"amount\":\"500\",\"apiToken\":\"REPLACE_WITH_API_TOKEN_FROM_LOGIN\"}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://english.energyy.ucskype.com/api/commonInternal.jsp",
+          "protocol": "http",
+          "host": [
+            "english",
+            "energyy",
+            "ucskype",
+            "com"
+          ],
+          "path": [
+            "api",
+            "commonInternal.jsp"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

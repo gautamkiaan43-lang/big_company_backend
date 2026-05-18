@@ -1,0 +1,22 @@
+﻿src/controllers/adminController.ts(1335,11): error TS2322: Type 'number' is not assignable to type 'string'.
+src/controllers/adminController.ts(1354,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/adminController.ts(1421,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/adminController.ts(1434,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/adminController.ts(1447,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/employeeController.ts(410,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/employeeController.ts(442,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/employeeController.ts(449,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/gasController.ts(115,22): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/gasController.ts(124,22): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/gasController.ts(222,17): error TS2322: Type 'number' is not assignable to type 'string'.
+src/controllers/gasController.ts(234,17): error TS2322: Type 'number' is not assignable to type 'string'.
+src/controllers/gasController.ts(507,17): error TS2322: Type 'string' is not assignable to type 'number | IntFilter<"CustomerOrder">'.
+src/controllers/recruitmentController.ts(81,51): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/retailerController.ts(828,65): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/retailerController.ts(849,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/retailerController.ts(1180,16): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/retailerController.ts(1189,30): error TS2339: Property 'wholesalerProfile' does not exist on type '{ id: number; createdAt: Date; updatedAt: Date; retailerId: number; wholesalerId: number; status: string; totalAmount: number; }'.
+src/controllers/retailerController.ts(1196,20): error TS2339: Property 'orderItems' does not exist on type '{ id: number; createdAt: Date; updatedAt: Date; retailerId: number; wholesalerId: number; status: string; totalAmount: number; }'.
+src/controllers/retailerController.ts(1261,60): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/retailersController.ts(477,21): error TS2322: Type 'string' is not assignable to type 'number'.
+src/controllers/vendorController.ts(95,22): error TS2322: Type 'string' is not assignable to type 'number'.
