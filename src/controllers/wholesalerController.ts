@@ -212,7 +212,8 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
 
     // Build where clause
     const where: any = {
-      wholesalerId: wholesalerProfile.id
+      wholesalerId: wholesalerProfile.id,
+      retailerId: null  // Never show retailer-owned products in wholesaler inventory
     };
 
     if (category) {
@@ -1025,18 +1026,39 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
       for (const item of updatedOrder.orderItems) {
         if (!item.product) continue;
 
-        // Search for existing product in retailer's inventory
+        // Search for existing product in retailer's inventory robustly
         // Priority: Barcode > SKU > Name
-        const existingProduct = await tx.product.findFirst({
-          where: {
-            retailerId: updatedOrder.retailerId,
-            OR: [
-              item.product.barcode ? { barcode: item.product.barcode } : { id: -1 },
-              item.product.sku ? { sku: item.product.sku } : { id: -1 },
-              { name: item.product.name }
-            ]
-          }
-        });
+        let existingProduct = null;
+        
+        if (item.product.barcode && item.product.barcode.trim() !== '') {
+          existingProduct = await tx.product.findFirst({
+            where: {
+              retailerId: updatedOrder.retailerId,
+              barcode: item.product.barcode,
+              status: 'active'
+            }
+          });
+        }
+        
+        if (!existingProduct && item.product.sku && item.product.sku.trim() !== '') {
+          existingProduct = await tx.product.findFirst({
+            where: {
+              retailerId: updatedOrder.retailerId,
+              sku: item.product.sku,
+              status: 'active'
+            }
+          });
+        }
+        
+        if (!existingProduct) {
+          existingProduct = await tx.product.findFirst({
+            where: {
+              retailerId: updatedOrder.retailerId,
+              name: item.product.name,
+              status: 'active'
+            }
+          });
+        }
 
         if (existingProduct) {
           // Update existing stock and ensure it's active

@@ -325,7 +325,7 @@ export const redeemRewards = async (req: AuthRequest, res: Response) => {
 // Send gas rewards to a meter
 export const sendToMeter = async (req: AuthRequest, res: Response) => {
     try {
-        const { meterId, amount } = req.body;
+        const { meterId, amount, meterType } = req.body;
 
         if (!meterId || !amount) {
             return res.status(400).json({ success: false, error: 'Meter ID and amount are required.' });
@@ -352,10 +352,11 @@ export const sendToMeter = async (req: AuthRequest, res: Response) => {
             ...req,
             body: {
                 meterNumber: meter.meterNumber,
-                meterType: meter.meterType,
+                meterType: 'TOKEN', // Hardcoded to match frontend flow
                 amount: amount,
                 paymentMethod: 'gas_rewards',
-                isVendByUnit: true // Rewards are sent in m3
+                isVendByUnit: true, // Rewards are sent in m3
+                provider: meterType === 'LORA_NB' ? 'stronpower' : 'zhongyi'
             }
         } as any;
 

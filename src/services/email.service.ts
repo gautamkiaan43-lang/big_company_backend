@@ -2,7 +2,7 @@ import { google } from 'googleapis';
 import path from 'path';
 import prisma from '../utils/prisma';
 import dotenv from 'dotenv';
-
+import { monitoringService } from './monitoring.service';
 export class EmailService {
   private static auth: any;
   private static gmail: any;
@@ -176,6 +176,7 @@ export class EmailService {
         },
       });
 
+      await monitoringService.reportApiRecovery('GMAIL_API');
       return { success: true, logId: log.id, messageId: res.data.id };
     } catch (error: any) {
       // Update log to FAILED
@@ -188,6 +189,7 @@ export class EmailService {
       });
       
       console.error(`[EmailService] Failed to send email to ${to}:`, error.message);
+      await monitoringService.reportApiFailure('GMAIL_API', error.message);
       throw error;
     }
   }

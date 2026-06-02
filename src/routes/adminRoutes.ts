@@ -68,7 +68,9 @@ import {
   deleteEmailTemplate,
   sendManualEmail,
   getEmailEvents,
-  updateEmailEvent
+  updateEmailEvent,
+  getSystemAlerts,
+  acknowledgeAlert
 } from '../controllers/adminController';
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../controllers/supplierController';
 import { getJobs, createJob, updateJob, deleteJob, getApplications, createApplication, updateApplicationStatus } from '../controllers/recruitmentController';
@@ -221,5 +223,9 @@ router.post('/send-manual-email', sendManualEmail);
 // Email Event Mapping Routes
 router.get('/email-events', getEmailEvents);
 router.put('/email-events/:id', updateEmailEvent);
+
+// System Alerts
+router.get('/alerts', getSystemAlerts);
+router.post('/alerts/:id/acknowledge', acknowledgeAlert);
 
 export default router;

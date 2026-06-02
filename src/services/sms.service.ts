@@ -1,6 +1,6 @@
 import axios from 'axios';
 import prisma from '../utils/prisma';
-
+import { monitoringService } from './monitoring.service';
 export class SMSService {
   private static readonly API_URL = 'https://www.intouchsms.co.rw/api/sendsms/.json';
 
@@ -87,6 +87,7 @@ export class SMSService {
             }
           });
         }
+        await monitoringService.reportApiRecovery('SMS_API');
         return { success: true, messageId: details?.messageid, logId: log.id };
       } else {
         // Handle Intouch-specific error structure
@@ -104,6 +105,7 @@ export class SMSService {
             }
           });
         }
+        await monitoringService.reportApiFailure('SMS_API', errorDetail);
         return { success: false, error: errorDetail, logId: log.id, isBalanceError };
       }
     } catch (error: any) {
@@ -115,6 +117,7 @@ export class SMSService {
           data: { status: 'FAILED', errorMessage: errorMessage }
         });
       }
+      await monitoringService.reportApiFailure('SMS_API', errorMessage);
       return { success: false, error: errorMessage, logId: log.id };
     }
   }

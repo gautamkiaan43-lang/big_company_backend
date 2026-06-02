@@ -110,4 +110,25 @@
     at ServerResponse.json (C:\Users\Admin\Desktop\big_pos\backend\node_modules\express\lib\response.js:252:15)
     at C:\Users\Admin\Desktop\big_pos\backend\src\controllers\storeController.ts:1148:21
     at Generator.next (<anonymous>)
-    at fulfilled (C:\Users\Admin\Desktop\big_pos\backend\src\controllers\storeController.ts:38:58)\n
+    at fulfilled (C:\Users\Admin\Desktop\big_pos\backend\src\controllers\storeController.ts:38:58)\n[2026-06-02T09:40:02.706Z] FATAL UNCAUGHT EXCEPTION: Error: EPIPE: broken pipe, write
+    at writeSync (node:fs:922:3)
+    at SyncWriteStream._write (node:internal/fs/sync_write_stream:27:5)
+    at writeOrBuffer (node:internal/streams/writable:570:12)
+    at _write (node:internal/streams/writable:499:10)
+    at SyncWriteStream.Writable.write (node:internal/streams/writable:508:10)
+    at console.value (node:internal/console/constructor:313:16)
+    at console.log (node:internal/console/constructor:416:26)
+    at _log (C:\Users\Saif16\Desktop\big_pos\big_company_backend\node_modules\dotenv\lib\main.js:142:11)
+    at Object.configDotenv (C:\Users\Saif16\Desktop\big_pos\big_company_backend\node_modules\dotenv\lib\main.js:320:5)
+    at Object.config (C:\Users\Saif16\Desktop\big_pos\big_company_backend\node_modules\dotenv\lib\main.js:334:25)
+[2026-06-02T11:37:32.217Z] FATAL UNCAUGHT EXCEPTION: Error: write EPIPE
+    at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+    at writeGeneric (node:internal/stream_base_commons:150:3)
+    at WriteStream.Socket._writeGeneric (node:net:966:11)
+    at WriteStream.Socket._write (node:net:978:8)
+    at writeOrBuffer (node:internal/streams/writable:570:12)
+    at _write (node:internal/streams/writable:499:10)
+    at WriteStream.Writable.write (node:internal/streams/writable:508:10)
+    at console.value (node:internal/console/constructor:313:16)
+    at console.log (node:internal/console/constructor:416:26)
+    at _log (C:\Users\Saif16\Desktop\big_pos\big_company_backend\node_modules\dotenv\lib\main.js:142:11)

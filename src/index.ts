@@ -141,6 +141,10 @@ app.listen(PORT, async () => {
   // Initialize Background Scheduler
   const { initScheduler } = await import('./queues/scheduler');
   await initScheduler();
+
+  // Initialize Health Checker
+  const { initHealthCheck } = await import('./services/healthCheck.service');
+  initHealthCheck();
 });
 
 process.on('uncaughtException', (err) => {

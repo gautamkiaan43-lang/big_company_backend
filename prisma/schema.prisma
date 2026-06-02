@@ -1084,3 +1084,16 @@ model Blog {
 
   @@map("blog")
 }
+
+model SystemAlert {
+  id           Int      @id @default(autoincrement())
+  apiName      String   // e.g., 'GMAIL_API', 'SMS_API', 'PALMKASH_API'
+  status       String   @default("failed") // 'failed', 'resolved'
+  failureTime  DateTime @default(now())
+  resolvedTime DateTime?
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("systemalert")
+}

@@ -3328,3 +3328,34 @@ export const updateEmailEvent = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+// ==========================================
+// SYSTEM ALERTS
+// ==========================================
+
+export const getSystemAlerts = async (req: AuthRequest, res: Response) => {
+  try {
+    const alerts = await prisma.systemAlert.findMany({
+      orderBy: { failureTime: 'desc' }
+    });
+    res.json({ success: true, alerts });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const acknowledgeAlert = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const alert = await prisma.systemAlert.update({
+      where: { id: Number(id) },
+      data: {
+        status: 'resolved',
+        resolvedTime: new Date()
+      }
+    });
+    res.json({ success: true, alert, message: 'Alert acknowledged successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

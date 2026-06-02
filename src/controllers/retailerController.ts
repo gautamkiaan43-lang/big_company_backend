@@ -49,14 +49,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       prisma.sale.findMany({
         where: { retailerId: retailerProfile.id }
       }),
-      // Inventory
       prisma.product.findMany({
-        where: {
-          OR: [
-            { retailerId: retailerProfile.id },
-            { retailerId: null }
-          ]
-        }
+        where: { retailerId: retailerProfile.id, wholesalerId: null }
       }),
       // Pending Orders (to wholesalers)
       prisma.order.findMany({
@@ -132,7 +126,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     }, {} as Record<string, number>);
 
     const paymentMethodsData = Object.entries(paymentStats).map(([name, value]) => ({
-      name: name === 'momo' ? 'Mobile Money' : name.charAt(0).toUpperCase() + name.slice(1),
+      name: name === 'momo' ? 'MTN Mobile Money' : name === 'airtel' ? 'Airtel Money' : name.charAt(0).toUpperCase() + name.slice(1),
       value: Math.round((value / (todaySalesAmount || 1)) * 100), // Percentage
       color: name === 'momo' ? '#ffcc00' : name === 'cash' ? '#52c41a' : '#1890ff'
     }));
@@ -267,52 +261,11 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
 
     // 1. Get Retailer's own inventory (and global items)
     const myProducts = await prisma.product.findMany({
-      where: {
-        OR: [
-          { retailerId: retailerProfile.id },
-          { retailerId: null }
-        ]
-      },
+      where: { retailerId: retailerProfile.id, wholesalerId: null },
       orderBy: { name: 'asc' }
     });
 
-    // 2. Get Global Catalog (Wholesaler products)
-    const catalogProducts = await prisma.product.findMany({
-      where: { wholesalerId: { not: null } },
-      include: { wholesalerProfile: true },
-      orderBy: { name: 'asc' }
-    });
-
-    // 3. Merge: If retailer has the product, use theirs. If not, show catalog item (stock 0)
-    // We match by SKU if available, otherwise Name
-    const myProductMap = new Map();
-    myProducts.forEach(p => {
-      const key = p.sku || p.name;
-      myProductMap.set(key, p);
-    });
-
-    const mergedInventory = [...myProducts];
-
-    catalogProducts.forEach(cp => {
-      const key = cp.sku || cp.name;
-      if (!myProductMap.has(key)) {
-        // Retailer doesn't have this one yet. Add as potential item.
-        mergedInventory.push({
-          ...cp,
-          id: cp.id, // Use catalog ID
-          retailerId: retailerProfile.id, // Mock it for frontend compatibility or handle as different
-          stock: 0,
-          price: cp.price * 1.2, // Estimated selling price (20% markup)
-          costPrice: cp.price,
-          status: 'catalog_item' // distinct status
-        });
-      }
-    });
-
-    // Sort combined list
-    mergedInventory.sort((a, b) => a.name.localeCompare(b.name));
-
-    res.json({ products: mergedInventory });
+    res.json({ products: myProducts });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -375,28 +328,61 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       }
 
       const createdProducts = [];
+      const updatedProducts = [];
       for (const item of order.orderItems) {
         const sourceProduct = item.product;
-        // Create new inventory item
-        const newProduct = await prisma.product.create({
-          data: {
-            name: sourceProduct.name,
-            description: sourceProduct.description,
-            sku: sourceProduct.sku, // Keep SKU or generate new? Keeping same simplifies tracking.
-            category: sourceProduct.category,
-            price: sourceProduct.price * 1.2, // Default markup 20%
-            costPrice: item.price, // Cost is what they paid in the order
-            stock: item.quantity,
-            unit: sourceProduct.unit,
-            invoiceNumber: invoice_number,
-            retailerId: retailerProfile.id,
-            image: sourceProduct.image,
-            status: 'active'
+
+        const existingProduct = await prisma.product.findFirst({
+          where: {
+            AND: [
+              { retailerId: retailerProfile.id },
+              {
+                OR: [
+                  sourceProduct.barcode ? { barcode: sourceProduct.barcode } : { id: -1 },
+                  sourceProduct.sku ? { sku: sourceProduct.sku } : { id: -1 },
+                  { name: sourceProduct.name }
+                ]
+              }
+            ]
           }
         });
-        createdProducts.push(newProduct);
+
+        if (existingProduct) {
+          const updateData: any = {
+            stock: { increment: item.quantity },
+            costPrice: item.price,
+            status: 'active'
+          };
+          if (!existingProduct.retailerId) {
+            updateData.retailerId = retailerProfile.id;
+          }
+          const updatedProduct = await prisma.product.update({
+            where: { id: existingProduct.id },
+            data: updateData
+          });
+          updatedProducts.push(updatedProduct);
+        } else {
+          // Create new inventory item
+          const newProduct = await prisma.product.create({
+            data: {
+              name: sourceProduct.name,
+              description: sourceProduct.description,
+              sku: sourceProduct.sku,
+              category: sourceProduct.category,
+              price: sourceProduct.price * 1.2, // Default markup 20%
+              costPrice: item.price, // Cost is what they paid in the order
+              stock: item.quantity,
+              unit: sourceProduct.unit,
+              invoiceNumber: invoice_number,
+              retailerId: retailerProfile.id,
+              image: sourceProduct.image,
+              status: 'active'
+            }
+          });
+          createdProducts.push(newProduct);
+        }
       }
-      return res.json({ success: true, count: createdProducts.length, message: `Imported ${createdProducts.length} items from invoice` });
+      return res.json({ success: true, count: createdProducts.length + updatedProducts.length, message: `Imported ${createdProducts.length} new items and updated ${updatedProducts.length} items from invoice` });
     }
 
     // --- Manual Flow (Single Product) ---
@@ -409,6 +395,15 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     let imageUrl = image;
     if (image && image.startsWith('data:image')) {
       imageUrl = await uploadImage(image);
+    }
+
+    if (sku) {
+      const duplicateSku = await prisma.product.findFirst({
+        where: { retailerId: retailerProfile.id, sku: sku }
+      });
+      if (duplicateSku) {
+        return res.status(400).json({ error: 'A product with this SKU already exists in your inventory.' });
+      }
     }
 
     const product = await prisma.product.create({
@@ -436,7 +431,22 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 export const updateProduct = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description, category, price, costPrice, stock, image } = req.body;
+    const { name, description, category, price, costPrice, stock, image, sku } = req.body;
+
+    // Validate SKU uniqueness
+    if (sku) {
+      const retailerProfile = await prisma.retailerProfile.findUnique({
+        where: { userId: req.user!.id }
+      });
+      if (retailerProfile) {
+        const duplicateSku = await prisma.product.findFirst({
+          where: { retailerId: retailerProfile.id, sku: sku, id: { not: Number(id) } }
+        });
+        if (duplicateSku) {
+          return res.status(400).json({ error: 'A product with this SKU already exists in your inventory.' });
+        }
+      }
+    }
 
     // Upload to Cloudinary if new image is provided as base64
     let imageUrl = image;
@@ -699,6 +709,7 @@ export const getPOSProducts = async (req: AuthRequest, res: Response) => {
 
     const where: any = {
       retailerId: retailerProfile.id, // Only show products belonging to this retailer
+      wholesalerId: null,              // Never show wholesaler catalog products in POS
       status: 'active',
       stock: { gt: 0 } // Only show products with stock available
     };
@@ -840,7 +851,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
             where: { id: dashboardWallet.id },
             data: { balance: { decrement: deductFromDashboard } }
           });
-          
+
           // Sync legacy balance
           await prisma.consumerProfile.update({
             where: { id: consumerId },
@@ -914,7 +925,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
       // --- Handle PalmKash (Mobile Money) ---
       let externalRef = null;
-      if (payment_method === 'mobile_money' || payment_method === 'momo') {
+      if (payment_method === 'mobile_money' || payment_method === 'momo' || payment_method === 'airtel' || payment_method === 'airtel' || payment_method === 'airtel') {
         if (!customer_phone) throw new Error('Customer phone required for mobile money payment');
 
         const palmKash = (await import('../services/palmKash.service')).default;
@@ -1591,7 +1602,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     res.json({ success: true, order: result });
   } catch (error: any) {
     console.error('Create order failed:', error);
-    
+
     // Notify Retailer of Failed Order (RET-EMAIL-018)
     try {
       const retailerProfile = await prisma.retailerProfile.findUnique({
@@ -1610,7 +1621,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           }
         });
       }
-    } catch (e) {}
+    } catch (e) { }
 
     res.status(500).json({ error: error.message });
   }
@@ -1933,7 +1944,7 @@ export const makeRepayment = async (req: AuthRequest, res: Response) => {
 
     // 2. PalmKash Integration for MoMo
     let externalRef = null;
-    if (paymentMethod === 'mobile_money' || paymentMethod === 'momo') {
+    if (paymentMethod === 'mobile_money' || paymentMethod === 'momo' || paymentMethod === 'airtel' || paymentMethod === 'airtel' || paymentMethod === 'airtel') {
       const palmKash = (await import('../services/palmKash.service')).default;
       const pmResult = await palmKash.initiatePayment({
         amount: parseFloat(amount),
@@ -2011,7 +2022,7 @@ export const payCredit = async (req: AuthRequest, res: Response) => {
 
     // 1. PalmKash Integration for MoMo
     let externalRef = null;
-    if (paymentMethod === 'mobile_money' || paymentMethod === 'momo') {
+    if (paymentMethod === 'mobile_money' || paymentMethod === 'momo' || paymentMethod === 'airtel' || paymentMethod === 'airtel' || paymentMethod === 'airtel') {
       const palmKash = (await import('../services/palmKash.service')).default;
       const pmResult = await palmKash.initiatePayment({
         amount: parseFloat(amount),
@@ -2280,7 +2291,7 @@ export const topUpWallet = async (req: AuthRequest, res: Response) => {
     let externalRef = null;
     let transactionRef = `TOPUP-${Date.now()}`; // Correct prefix for webhook
 
-    if (source === 'mobile_money' || source === 'momo') {
+    if (source === 'mobile_money' || source === 'momo' || source === 'airtel' || source === 'airtel' || source === 'airtel') {
       console.log(`📡 [topUpWallet] Initiating PalmKash payment for phone: ${req.body.phone || (retailerProfile as any).user?.phone}`);
       const palmKash = (await import('../services/palmKash.service')).default;
       const pmResult = await palmKash.initiatePayment({
@@ -2794,7 +2805,7 @@ export const linkCardForCustomer = async (req: AuthRequest, res: Response) => {
   try {
     const { customerId, uid, pin, nickname } = req.body;
     console.log('Linking card request:', { customerId, uid, pin, nickname });
-    
+
     if (!customerId || !uid) {
       return res.status(400).json({ success: false, error: 'Customer ID and Card UID are required' });
     }
@@ -2831,12 +2842,12 @@ export const linkCardForCustomer = async (req: AuthRequest, res: Response) => {
 
     // Check if card already exists
     const existingCard = await prisma.nfcCard.findUnique({ where: { uid } });
-    
+
     if (existingCard) {
       if (existingCard.consumerId && existingCard.consumerId !== targetCustomerId) {
         return res.status(400).json({ success: false, error: 'This card belongs to someone else already.' });
       }
-      
+
       await prisma.nfcCard.update({
         where: { uid },
         data: {
@@ -3374,6 +3385,7 @@ export const confirmPurchaseOrderDelivery = async (req: AuthRequest, res: Respon
             where: { id: existingProduct.id },
             data: {
               stock: { increment: item.quantity },
+              costPrice: item.price,
               status: 'active'
             }
           });

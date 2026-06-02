@@ -42,7 +42,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
     log('Checking for mobile money payment...');
     let externalRef = null;
-    if (paymentMethod === 'mobile_money' || paymentMethod === 'momo') {
+    if (paymentMethod === 'mobile_money' || paymentMethod === 'momo' || paymentMethod === 'airtel' || paymentMethod === 'airtel' || paymentMethod === 'airtel') {
       log('Mobile money detected, importing palmKash service...');
       const palmKash = (await import('../services/palmKash.service')).default;
       log('PalmKash service imported');
@@ -1077,7 +1077,7 @@ export const repayLoan = async (req: AuthRequest, res: Response) => {
     // PALMKASH INTEGRATION
     // ==========================================
     let externalRef = null;
-    if (payment_method === 'mobile_money' || payment_method === 'momo') {
+    if (payment_method === 'mobile_money' || payment_method === 'momo' || payment_method === 'airtel' || payment_method === 'airtel' || payment_method === 'airtel') {
         const palmKash = (await import('../services/palmKash.service')).default;
         const pmResult = await palmKash.initiatePayment({
             amount: parseFloat(amount),

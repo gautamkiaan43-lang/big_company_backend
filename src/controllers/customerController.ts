@@ -307,7 +307,7 @@ export const topupWallet = async (req: AuthRequest, res: Response) => {
         let externalId = null;
         let paymentStatus = 'completed'; // Default for non-api flows
 
-        if (payment_method === 'mobile_money' || payment_method === 'momo') {
+        if (payment_method === 'mobile_money' || payment_method === 'momo' || payment_method === 'airtel' || payment_method === 'airtel' || payment_method === 'airtel') {
             const palmKash = (await import('../services/palmKash.service')).default;
             const pmResult = await palmKash.initiatePayment({
                 amount: amount,

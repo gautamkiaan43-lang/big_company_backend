@@ -1,6 +1,6 @@
 import axios from 'axios';
 import prisma from '../utils/prisma';
-
+import { monitoringService } from './monitoring.service';
 class PalmKashService {
   private clientId: string;
   private secretKey: string;
@@ -107,6 +107,7 @@ class PalmKashService {
       const contentType = response.headers['content-type'] || '';
       if (!contentType.includes('application/json')) {
         console.error('❌ [PalmKash] Received non-JSON response (likely Cloudflare block)');
+        await monitoringService.reportApiFailure('PALMKASH_API', 'Received non-JSON response (likely Cloudflare block)');
         return {
           success: false,
           error: "PalmKash blocked request — server/IP not trusted yet",
@@ -115,6 +116,7 @@ class PalmKashService {
       }
 
       if (response.status >= 400) {
+        await monitoringService.reportApiFailure('PALMKASH_API', response.data.error || response.data.message || 'Payment initiation failed');
         return {
           success: false,
           error: response.data.error || response.data.message || 'Payment initiation failed',
@@ -123,6 +125,7 @@ class PalmKashService {
         };
       }
 
+      await monitoringService.reportApiRecovery('PALMKASH_API');
       return {
         success: true,
         transactionId: response.data.reference || response.data.transaction_id,
@@ -131,6 +134,7 @@ class PalmKashService {
       };
     } catch (error: any) {
       console.error('PalmKash Payment Error:', error.response?.data || error.message);
+      await monitoringService.reportApiFailure('PALMKASH_API', error.message || 'PalmKash connection failed');
 
       // If we still get a 500 or network error that wasn't caught by validateStatus
       const contentType = error.response?.headers?.['content-type'] || '';
@@ -168,9 +172,11 @@ class PalmKashService {
           'Accept': 'application/json'
         }
       });
+      await monitoringService.reportApiRecovery('PALMKASH_API');
       return response.data; // { status: 'SUCCESS' | 'FAILED' | 'PENDING', ... }
     } catch (error: any) {
       console.error('PalmKash Verify Error:', error.response?.data || error.message);
+      await monitoringService.reportApiFailure('PALMKASH_API', error.message || 'PalmKash verify failed');
       return { status: 'ERROR', message: error.message };
     }
   }
