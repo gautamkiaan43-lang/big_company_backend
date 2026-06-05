@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -15,13 +48,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getSettlementInvoice = exports.getSettlementInvoices = exports.unlinkRetailer = exports.getLinkedRetailers = exports.rejectLinkRequest = exports.approveLinkRequest = exports.getLinkRequests = exports.rejectCreditRequest = exports.approveCreditRequest = exports.getCreditRequests = exports.confirmDelivery = exports.shipOrder = exports.rejectOrder = exports.confirmOrder = exports.getOrderStats = exports.updateOrderStatus = exports.getOrder = exports.getRetailerOrders = exports.deleteProduct = exports.updatePrice = exports.updateStock = exports.updateProduct = exports.createProduct = exports.getCategories = exports.getInventoryStats = exports.getInventory = exports.getDashboardStats = void 0;
 const prisma_1 = __importDefault(require("../utils/prisma"));
 const cloudinary_1 = require("../utils/cloudinary");
+const email_queue_1 = require("../queues/email.queue");
 // Get dashboard stats with comprehensive calculations
 const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
         console.log('📊 Fetching dashboard stats for user:', (_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             console.error('❌ Wholesaler profile not found');
@@ -171,7 +206,8 @@ const getInventory = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         console.log('📦 Fetching inventory for user:', (_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
         console.log('📦 Query params:', req.query);
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             console.error('❌ Wholesaler profile not found');
@@ -181,7 +217,8 @@ const getInventory = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const { category, search, low_stock, limit = '20', offset = '0' } = req.query;
         // Build where clause
         const where = {
-            wholesalerId: wholesalerProfile.id
+            wholesalerId: wholesalerProfile.id,
+            retailerId: null // Never show retailer-owned products in wholesaler inventory
         };
         if (category) {
             where.category = category;
@@ -229,7 +266,8 @@ exports.getInventory = getInventory;
 const getInventoryStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ error: 'Wholesaler profile not found' });
@@ -535,7 +573,8 @@ const getRetailerOrders = (req, res) => __awaiter(void 0, void 0, void 0, functi
     try {
         console.log('📋 Fetching orders for user:', (_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             console.error('❌ Wholesaler profile not found');
@@ -568,7 +607,8 @@ const getOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         const { id } = req.params;
         console.log('📋 Fetching order details for:', id);
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ error: 'Wholesaler profile not found' });
@@ -643,7 +683,8 @@ exports.updateOrderStatus = updateOrderStatus;
 const getOrderStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ error: 'Wholesaler profile not found' });
@@ -689,7 +730,8 @@ const confirmOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     try {
         const { id } = req.params;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -736,6 +778,23 @@ const confirmOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     retailerProfile: { include: { user: true } }
                 }
             });
+            // 4. Trigger Email Notification (RET-EMAIL-002)
+            const orderDate = updatedOrder.createdAt.toLocaleDateString();
+            const estDelivery = new Date(updatedOrder.createdAt.getTime() + 24 * 60 * 60 * 1000).toLocaleDateString(); // 24h default
+            yield email_queue_1.emailQueue.add('order-accepted', {
+                to: updatedOrder.retailerProfile.user.email,
+                templateType: 'order-accepted',
+                data: {
+                    order_id: updatedOrder.id.toString(),
+                    retail_name: updatedOrder.retailerProfile.shopName,
+                    product: updatedOrder.orderItems.map(item => `${item.quantity}x ${item.product.name}`).join(', '),
+                    quantity: updatedOrder.orderItems.reduce((sum, item) => sum + item.quantity, 0).toString(),
+                    wholesaler_name: wholesalerProfile.companyName,
+                    order_date: orderDate,
+                    estimated_delivery: estDelivery
+                },
+                relatedEntity: { type: 'ORDER', id: updatedOrder.id.toString() }
+            });
             return updatedOrder;
         }), { timeout: 15000 });
         res.json({ success: true, order: result, message: 'Order confirmed and stock deducted successfully' });
@@ -752,7 +811,8 @@ const rejectOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         const { id } = req.params;
         const { reason } = req.body;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -804,7 +864,8 @@ const shipOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -847,7 +908,8 @@ const confirmDelivery = (req, res) => __awaiter(void 0, void 0, void 0, function
     try {
         const { id } = req.params;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -865,31 +927,50 @@ const confirmDelivery = (req, res) => __awaiter(void 0, void 0, void 0, function
             return res.status(400).json({ success: false, error: `Cannot confirm delivery for order with status: ${order.status}. Order must be shipped first.` });
         }
         const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
             // 1. Update order status
             const updatedOrder = yield tx.order.update({
                 where: { id: Number(id) },
                 data: { status: 'delivered' },
                 include: {
                     orderItems: { include: { product: true } },
-                    retailerProfile: true
+                    retailerProfile: { include: { user: true } }
                 }
             });
             // 2. Update Retailer's Inventory
             for (const item of updatedOrder.orderItems) {
                 if (!item.product)
                     continue;
-                // Search for existing product in retailer's inventory
+                // Search for existing product in retailer's inventory robustly
                 // Priority: Barcode > SKU > Name
-                const existingProduct = yield tx.product.findFirst({
-                    where: {
-                        retailerId: updatedOrder.retailerId,
-                        OR: [
-                            item.product.barcode ? { barcode: item.product.barcode } : { id: -1 },
-                            item.product.sku ? { sku: item.product.sku } : { id: -1 },
-                            { name: item.product.name }
-                        ]
-                    }
-                });
+                let existingProduct = null;
+                if (item.product.barcode && item.product.barcode.trim() !== '') {
+                    existingProduct = yield tx.product.findFirst({
+                        where: {
+                            retailerId: updatedOrder.retailerId,
+                            barcode: item.product.barcode,
+                            status: 'active'
+                        }
+                    });
+                }
+                if (!existingProduct && item.product.sku && item.product.sku.trim() !== '') {
+                    existingProduct = yield tx.product.findFirst({
+                        where: {
+                            retailerId: updatedOrder.retailerId,
+                            sku: item.product.sku,
+                            status: 'active'
+                        }
+                    });
+                }
+                if (!existingProduct) {
+                    existingProduct = yield tx.product.findFirst({
+                        where: {
+                            retailerId: updatedOrder.retailerId,
+                            name: item.product.name,
+                            status: 'active'
+                        }
+                    });
+                }
                 if (existingProduct) {
                     // Update existing stock and ensure it's active
                     yield tx.product.update({
@@ -920,6 +1001,48 @@ const confirmDelivery = (req, res) => __awaiter(void 0, void 0, void 0, function
                     });
                 }
             }
+            // 3. Trigger Email Notification (RET-EMAIL-003)
+            const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+            const deliveryDate = updatedOrder.updatedAt.toLocaleDateString();
+            const amountStr = updatedOrder.totalAmount.toLocaleString();
+            yield emailQueue.add('order-delivered', {
+                to: updatedOrder.retailerProfile.user.email,
+                templateType: 'order-delivered', // Mapped to RET-EMAIL-003
+                data: {
+                    retail_name: updatedOrder.retailerProfile.shopName,
+                    order_id: updatedOrder.id.toString(),
+                    invoice_no: `INV-${updatedOrder.id}`,
+                    product: updatedOrder.orderItems.map(item => `${item.quantity}x ${item.product.name}`).join(', '),
+                    quantity: updatedOrder.orderItems.reduce((sum, item) => sum + item.quantity, 0).toString(),
+                    amount: amountStr,
+                    delivery_date: deliveryDate,
+                    payment_method: updatedOrder.paymentMethod || 'Wallet',
+                    balance: (updatedOrder.retailerProfile.walletBalance || 0).toLocaleString(),
+                    receipt_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/receipts/${updatedOrder.id}`
+                },
+                relatedEntity: { type: 'ORDER', id: updatedOrder.id.toString() }
+            });
+            // 4. Trigger Wholesaler Alert (WHO-EMAIL-004)
+            if ((_a = wholesalerProfile.user) === null || _a === void 0 ? void 0 : _a.email) {
+                yield emailQueue.add('retailer-order-delivered-alert', {
+                    to: wholesalerProfile.user.email,
+                    templateType: 'retailer-order-delivered', // Mapped to WHO-EMAIL-004
+                    data: {
+                        wholesaler_name: wholesalerProfile.companyName,
+                        retail_name: updatedOrder.retailerProfile.shopName,
+                        order_id: updatedOrder.id.toString(),
+                        invoice_no: `INV-${updatedOrder.id}`,
+                        product: updatedOrder.orderItems.length > 1 ? `${updatedOrder.orderItems[0].product.name} and others` : updatedOrder.orderItems[0].product.name,
+                        quantity: updatedOrder.orderItems.reduce((sum, item) => sum + item.quantity, 0).toString(),
+                        amount: amountStr,
+                        delivery_date: deliveryDate,
+                        payment_method: updatedOrder.paymentMethod || 'Wallet',
+                        balance: (updatedOrder.retailerProfile.walletBalance || 0).toLocaleString(),
+                        receipt_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/receipts/${updatedOrder.id}`
+                    },
+                    relatedEntity: { type: 'ORDER', id: updatedOrder.id.toString() }
+                });
+            }
             return updatedOrder;
         }), { timeout: 15000 });
         res.json({ success: true, order: result, message: 'Delivery confirmed and retailer stock updated' });
@@ -936,7 +1059,8 @@ exports.confirmDelivery = confirmDelivery;
 const getCreditRequests = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile)
             return res.status(404).json({ error: 'Wholesaler not found' });
@@ -967,6 +1091,7 @@ const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, fun
         const { id } = req.params;
         const { notes } = req.body;
         const result = yield prisma_1.default.$transaction((prisma) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
             const request = yield prisma.creditRequest.findUnique({
                 where: { id: Number(id) }
             });
@@ -1006,11 +1131,27 @@ const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, fun
                     }
                 });
             }
-            // Also update retailer profile main balance/limit for compatibility
-            yield prisma.retailerProfile.update({
+            // 3. Trigger Email Notification (RET-EMAIL-009)
+            const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+            const retailer = yield prisma.retailerProfile.findUnique({
                 where: { id: request.retailerId },
-                data: { creditLimit: { increment: request.amount } }
+                include: { user: true }
             });
+            if ((_a = retailer === null || retailer === void 0 ? void 0 : retailer.user) === null || _a === void 0 ? void 0 : _a.email) {
+                yield emailQueue.add('credit-request-approved', {
+                    to: retailer.user.email,
+                    templateType: 'credit-request-approved',
+                    data: {
+                        retail_name: retailer.shopName,
+                        approved_amount: request.amount.toLocaleString(),
+                        repayment_period: '30 Days',
+                        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                        interest_rate: '5%',
+                        repayment_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/credit`
+                    },
+                    relatedEntity: { type: 'CREDIT_REQUEST', id: request.id.toString() }
+                });
+            }
             return { success: true };
         }));
         res.json(result);
@@ -1047,7 +1188,8 @@ const getLinkRequests = (req, res) => __awaiter(void 0, void 0, void 0, function
     try {
         const { status } = req.query;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -1109,10 +1251,12 @@ const getLinkRequests = (req, res) => __awaiter(void 0, void 0, void 0, function
 exports.getLinkRequests = getLinkRequests;
 // Approve a link request
 const approveLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { requestId } = req.params;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -1122,7 +1266,7 @@ const approveLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, funct
                 id: parseInt(requestId),
                 wholesalerId: wholesalerProfile.id
             },
-            include: { retailer: true }
+            include: { retailer: { include: { user: true } } }
         });
         if (!request) {
             return res.status(404).json({ success: false, error: 'Link request not found' });
@@ -1144,6 +1288,20 @@ const approveLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, funct
                 respondedAt: new Date()
             }
         });
+        // Trigger Email Notification (RET-EMAIL-005)
+        const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+        if ((_a = request.retailer.user) === null || _a === void 0 ? void 0 : _a.email) {
+            yield emailQueue.add('link-request-approved', {
+                to: request.retailer.user.email,
+                templateType: 'link-request-approved',
+                data: {
+                    retail_name: request.retailer.shopName,
+                    customer_name: wholesalerProfile.companyName, // In this context, the wholesaler is the "partner"
+                    approval_date: new Date().toLocaleDateString()
+                },
+                relatedEntity: { type: 'LINK_REQUEST', id: request.id.toString() }
+            });
+        }
         res.json({
             success: true,
             message: `Link request approved. ${request.retailer.shopName} is now linked to you.`
@@ -1161,7 +1319,8 @@ const rejectLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, functi
         const { requestId } = req.params;
         const { reason } = req.body;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -1200,7 +1359,8 @@ exports.rejectLinkRequest = rejectLinkRequest;
 const getLinkedRetailers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -1297,7 +1457,8 @@ const unlinkRetailer = (req, res) => __awaiter(void 0, void 0, void 0, function*
     try {
         const { retailerId } = req.params;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -1345,7 +1506,8 @@ const getSettlementInvoices = (req, res) => __awaiter(void 0, void 0, void 0, fu
     try {
         const { month } = req.query;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });
@@ -1378,7 +1540,8 @@ const getSettlementInvoice = (req, res) => __awaiter(void 0, void 0, void 0, fun
     try {
         const { id } = req.params;
         const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!wholesalerProfile) {
             return res.status(404).json({ success: false, error: 'Wholesaler profile not found' });

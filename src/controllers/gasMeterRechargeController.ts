@@ -95,8 +95,8 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
             }
             consumerProfileId = consumerProfile.id;
 
-            // Identify if meter is Zamuka (based on known patterns)
-            const isZamuka = meterNumber.startsWith('399703') || meterNumber.startsWith('645424');
+            // Identify if meter is Zamuka (based on provider)
+            const isZamuka = selectedProvider === 'stronpower';
             
             // Validate Minimum Amount (Requirement 2.3.1)
             if (!isPushToken) {

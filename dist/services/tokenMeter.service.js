@@ -29,9 +29,8 @@ class TokenMeterService {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
             const isDev = process.env.DEV_MODE === 'true' || process.env.DEV_MODE === '1';
-            const isDemoMeter = process.env.ENABLE_DEMO_METER === 'true' && params.meterNumber.includes('399703');
-            if (isDev || isDemoMeter) {
-                console.log(`🛠️ [TokenMeter ${isDev ? 'DEV' : 'DEMO'}] Simulating token for meter: ${params.meterNumber}`);
+            if (isDev) {
+                console.log(`🛠️ [TokenMeter DEV] Simulating token for meter: ${params.meterNumber}`);
                 const fakeToken = this.generateLocalToken();
                 const units = params.isVendByUnit ? params.amount : this.calculateUnits(params.amount);
                 return {

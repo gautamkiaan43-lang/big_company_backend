@@ -15,10 +15,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailService = void 0;
 const googleapis_1 = require("googleapis");
 const path_1 = __importDefault(require("path"));
-const client_1 = require("@prisma/client");
-const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
-const prisma = new client_1.PrismaClient();
+const prisma_1 = __importDefault(require("../utils/prisma"));
+const monitoring_service_1 = require("./monitoring.service");
 class EmailService {
     /**
      * Initializes the Google JWT Auth with Domain-Wide Delegation.
@@ -114,20 +112,26 @@ class EmailService {
      */
     static sendEmail(to, subject, html, templateType, relatedEntity, existingLogId) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!to) {
+                console.error(`❌ [EmailService] Cannot send email: Recipient address is undefined (Subject: ${subject})`);
+                return;
+            }
             let log;
             if (existingLogId) {
-                log = yield prisma.systemEmailLog.update({
+                log = yield prisma_1.default.systemEmailLog.update({
                     where: { id: existingLogId },
                     data: {
+                        // @ts-ignore
                         status: 'RETRYING',
                         retryCount: { increment: 1 }
                     },
                 });
             }
             else {
-                log = yield prisma.systemEmailLog.create({
+                log = yield prisma_1.default.systemEmailLog.create({
                     data: {
                         recipientEmail: to,
+                        // @ts-ignore
                         subject: subject,
                         templateType: templateType,
                         status: 'PENDING',
@@ -161,18 +165,20 @@ class EmailService {
                     },
                 });
                 // Update log to SENT with messageId
-                yield prisma.systemEmailLog.update({
+                yield prisma_1.default.systemEmailLog.update({
                     where: { id: log.id },
                     data: {
                         status: 'SENT',
+                        // @ts-ignore
                         messageId: res.data.id || undefined
                     },
                 });
+                yield monitoring_service_1.monitoringService.reportApiRecovery('GMAIL_API');
                 return { success: true, logId: log.id, messageId: res.data.id };
             }
             catch (error) {
                 // Update log to FAILED
-                yield prisma.systemEmailLog.update({
+                yield prisma_1.default.systemEmailLog.update({
                     where: { id: log.id },
                     data: {
                         status: 'FAILED',
@@ -180,6 +186,7 @@ class EmailService {
                     },
                 });
                 console.error(`[EmailService] Failed to send email to ${to}:`, error.message);
+                yield monitoring_service_1.monitoringService.reportApiFailure('GMAIL_API', error.message);
                 throw error;
             }
         });

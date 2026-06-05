@@ -123,7 +123,7 @@ export const getGasMeters = async (req: AuthRequest, res: Response) => {
                     owner_name: m.ownerName,
                     owner_phone: m.ownerPhone,
                     status: m.status,
-                    meter_type: (m as any).meterType || ((m.meterNumber && (m.meterNumber.includes('645424') || m.meterNumber.includes('399703'))) ? 'TOKEN' : 'PIPING'),
+                    meter_type: (m as any).meterType || (m.isGprs ? 'PIPING' : 'TOKEN'),
                     current_units: m.currentUnits,
                     created_at: m.createdAt
                 };

@@ -341,7 +341,7 @@ exports.redeemRewards = redeemRewards;
 // Send gas rewards to a meter
 const sendToMeter = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { meterId, amount } = req.body;
+        const { meterId, amount, meterType } = req.body;
         if (!meterId || !amount) {
             return res.status(400).json({ success: false, error: 'Meter ID and amount are required.' });
         }
@@ -356,16 +356,15 @@ const sendToMeter = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 ]
             }
         });
-        if (!meter) {
-            return res.status(404).json({ success: false, error: 'Meter not found.' });
-        }
+        const targetMeterNumber = meter ? meter.meterNumber : meterId;
         // 2. Map to Official Recharge Flow
         const rechargeReq = Object.assign(Object.assign({}, req), { body: {
-                meterNumber: meter.meterNumber,
-                meterType: meter.meterType,
+                meterNumber: targetMeterNumber,
+                meterType: 'TOKEN', // Hardcoded to match frontend flow
                 amount: amount,
                 paymentMethod: 'gas_rewards',
-                isVendByUnit: true // Rewards are sent in m3
+                isVendByUnit: true, // Rewards are sent in m3
+                provider: meterType === 'LORA_NB' ? 'stronpower' : 'zhongyi'
             } });
         const { initiateGasMeterRecharge } = yield Promise.resolve().then(() => __importStar(require('./gasMeterRechargeController')));
         return initiateGasMeterRecharge(rechargeReq, res);

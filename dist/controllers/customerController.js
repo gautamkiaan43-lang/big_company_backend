@@ -330,7 +330,7 @@ const topupWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         // ==========================================
         let externalId = null;
         let paymentStatus = 'completed'; // Default for non-api flows
-        if (payment_method === 'mobile_money' || payment_method === 'momo') {
+        if (payment_method === 'mobile_money' || payment_method === 'momo' || payment_method === 'airtel' || payment_method === 'airtel' || payment_method === 'airtel') {
             const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
             const pmResult = yield palmKash.initiatePayment({
                 amount: amount,
@@ -363,6 +363,24 @@ const topupWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 reference: externalId || undefined
             }
         });
+        // 4. Trigger Customer SMS Notification (CUS-SMS-003)
+        try {
+            const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+            yield emailQueue.add('customer-wallet-topup', {
+                to: consumerProfile.user.phone,
+                templateType: 'customer-wallet-topup', // Mapped to CUS-SMS-003
+                data: {
+                    customer_name: consumerProfile.fullName || consumerProfile.user.name || 'Customer',
+                    amount: amount.toLocaleString(),
+                    new_balance: updatedWallet.balance.toLocaleString(),
+                    transaction_id: externalId || 'N/A'
+                },
+                relatedEntity: { type: 'WALLET_TRANSACTION', id: externalId || 'N/A' }
+            });
+        }
+        catch (err) {
+            console.error('Customer topup notification failed:', err);
+        }
         res.json({
             success: true,
             data: {

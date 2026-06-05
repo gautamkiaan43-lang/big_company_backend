@@ -330,7 +330,6 @@ export const sendToMeter = async (req: AuthRequest, res: Response) => {
         if (!meterId || !amount) {
             return res.status(400).json({ success: false, error: 'Meter ID and amount are required.' });
         }
-
         // 1. Resolve Meter (Flexible search for with/without MTR- prefix)
         const meter = await prisma.gasMeter.findFirst({
             where: {
@@ -343,15 +342,13 @@ export const sendToMeter = async (req: AuthRequest, res: Response) => {
             }
         });
 
-        if (!meter) {
-            return res.status(404).json({ success: false, error: 'Meter not found.' });
-        }
+        const targetMeterNumber = meter ? meter.meterNumber : meterId;
 
         // 2. Map to Official Recharge Flow
         const rechargeReq = {
             ...req,
             body: {
-                meterNumber: meter.meterNumber,
+                meterNumber: targetMeterNumber,
                 meterType: 'TOKEN', // Hardcoded to match frontend flow
                 amount: amount,
                 paymentMethod: 'gas_rewards',

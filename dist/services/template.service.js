@@ -47,7 +47,8 @@ class TemplateService {
     /**
      * Base wrapper for all emails to ensure consistent branding.
      */
-    static wrap(content, title = 'BIG Ltd Operations') {
+    static wrap(content, title = 'Big Innovation Group Ltd') {
+        const hasRegards = content.includes('Regards') || content.includes('Big Innovation Group Ltd') || content.includes('info@big.co.rw') || content.includes('Info@big.co.rw');
         return `
       <!DOCTYPE html>
       <html>
@@ -58,7 +59,7 @@ class TemplateService {
           .container { max-width: 600px; margin: 0 auto; border: 1px solid #eee; }
           .header { background: #6366f1; color: white; padding: 30px; text-align: center; }
           .content { padding: 30px; background: #ffffff; }
-          .footer { background: #f9fafb; color: #6b7280; padding: 20px; text-align: center; font-size: 12px; }
+          .footer { background: #f9fafb; color: #6b7280; padding: 20px; text-align: center; font-size: 13px; border-top: 1px solid #eee; }
           .button { background: #6366f1; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; margin-top: 20px; }
           .alert { background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
           .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
@@ -69,14 +70,21 @@ class TemplateService {
       <body>
         <div class="container">
           <div class="header">
-            <h1 style="margin:0; font-size: 24px;">${title}</h1>
+            <h1 style="margin:0; font-size: 24px;">Big Innovation Group Ltd</h1>
           </div>
           <div class="content">
             ${content}
           </div>
           <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} BIG Ltd. All rights reserved.</p>
-            <p>This is an automated system notification. Please do not reply directly to this email.</p>
+            ${hasRegards ? '' : `
+              <p style="margin-bottom: 5px; font-weight: bold;">Regards,</p>
+              <p style="margin: 0;">Big Innovation Group Ltd</p>
+              <p style="margin: 0;">+250788541239</p>
+              <p style="margin: 0;">Info@big.co.rw</p>
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 15px 0;" />
+            `}
+            <p style="font-size: 11px; color: #999;">&copy; ${new Date().getFullYear()} Big Innovation Group Ltd. All rights reserved.</p>
+            <p style="font-size: 11px; color: #999;">This is an automated email disclaimer. Please do not reply directly to this notification.</p>
           </div>
         </div>
       </body>
@@ -98,28 +106,40 @@ class TemplateService {
     /**
      * Fetches template from DB or returns default fallback.
      */
-    static getTemplate(name, data) {
+    static getTemplate(nameOrSlug, data) {
         return __awaiter(this, void 0, void 0, function* () {
             const prisma = new (yield Promise.resolve().then(() => __importStar(require('@prisma/client')))).PrismaClient();
+            let templateName = nameOrSlug;
             try {
-                // @ts-ignore - EmailTemplate might not be in generated client yet
+                // 1. Try to resolve the template name from the event mapping first
+                // @ts-ignore
+                const mapping = yield prisma.emailEvent.findUnique({
+                    where: { eventSlug: nameOrSlug }
+                });
+                if (mapping) {
+                    templateName = mapping.templateName;
+                    console.log(`[TemplateService] Resolved Event Slug '${nameOrSlug}' to Template Name '${templateName}'`);
+                }
+                // 2. Fetch the actual template content
+                // @ts-ignore
                 const dbTemplate = yield prisma.emailTemplate.findUnique({
-                    where: { name, isActive: true }
+                    where: { name: templateName, isActive: true }
                 });
                 if (dbTemplate) {
                     const subject = this.render(dbTemplate.subject, data);
                     const content = this.render(dbTemplate.content, data);
+                    const isSMS = templateName.includes('SMS') || nameOrSlug.includes('SMS');
                     return {
                         subject,
-                        html: this.wrap(content, 'BIG Ltd')
+                        html: isSMS ? content : this.wrap(content, 'BIG Ltd')
                     };
                 }
             }
             catch (e) {
-                console.warn(`[TemplateService] Could not fetch template ${name} from DB, using fallback:`, e.message);
+                console.warn(`[TemplateService] Could not fetch template ${templateName} from DB, using fallback:`, e.message);
             }
             // Fallback to hardcoded templates
-            switch (name) {
+            switch (templateName) {
                 case 'ONBOARDING':
                     return {
                         subject: `Welcome to BIG Ltd, ${data.name || 'User'}!`,

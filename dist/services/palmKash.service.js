@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const axios_1 = __importDefault(require("axios"));
+const monitoring_service_1 = require("./monitoring.service");
 class PalmKashService {
     constructor() {
         this.clientId = process.env.PALMKASH_CLIENT_ID || '';
@@ -102,6 +103,7 @@ class PalmKashService {
                 const contentType = response.headers['content-type'] || '';
                 if (!contentType.includes('application/json')) {
                     console.error('❌ [PalmKash] Received non-JSON response (likely Cloudflare block)');
+                    yield monitoring_service_1.monitoringService.reportApiFailure('PALMKASH_API', 'Received non-JSON response (likely Cloudflare block)');
                     return {
                         success: false,
                         error: "PalmKash blocked request — server/IP not trusted yet",
@@ -109,6 +111,7 @@ class PalmKashService {
                     };
                 }
                 if (response.status >= 400) {
+                    yield monitoring_service_1.monitoringService.reportApiFailure('PALMKASH_API', response.data.error || response.data.message || 'Payment initiation failed');
                     return {
                         success: false,
                         error: response.data.error || response.data.message || 'Payment initiation failed',
@@ -116,6 +119,7 @@ class PalmKashService {
                         transactionId: params.referenceId
                     };
                 }
+                yield monitoring_service_1.monitoringService.reportApiRecovery('PALMKASH_API');
                 return {
                     success: true,
                     transactionId: response.data.reference || response.data.transaction_id,
@@ -125,6 +129,7 @@ class PalmKashService {
             }
             catch (error) {
                 console.error('PalmKash Payment Error:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
+                yield monitoring_service_1.monitoringService.reportApiFailure('PALMKASH_API', error.message || 'PalmKash connection failed');
                 // If we still get a 500 or network error that wasn't caught by validateStatus
                 const contentType = ((_c = (_b = error.response) === null || _b === void 0 ? void 0 : _b.headers) === null || _c === void 0 ? void 0 : _c['content-type']) || '';
                 if (error.response && !contentType.includes('application/json')) {
@@ -162,10 +167,12 @@ class PalmKashService {
                         'Accept': 'application/json'
                     }
                 });
+                yield monitoring_service_1.monitoringService.reportApiRecovery('PALMKASH_API');
                 return response.data; // { status: 'SUCCESS' | 'FAILED' | 'PENDING', ... }
             }
             catch (error) {
                 console.error('PalmKash Verify Error:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
+                yield monitoring_service_1.monitoringService.reportApiFailure('PALMKASH_API', error.message || 'PalmKash verify failed');
                 return { status: 'ERROR', message: error.message };
             }
         });

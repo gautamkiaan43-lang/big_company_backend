@@ -120,8 +120,8 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
                 return res.status(404).json({ success: false, error: 'Consumer profile not found.' });
             }
             consumerProfileId = consumerProfile.id;
-            // Identify if meter is Zamuka (based on known patterns)
-            const isZamuka = meterNumber.startsWith('399703') || meterNumber.startsWith('645424');
+            // Identify if meter is Zamuka (based on provider)
+            const isZamuka = selectedProvider === 'stronpower';
             // Validate Minimum Amount (Requirement 2.3.1)
             if (!isPushToken) {
                 if (totalMoneyAmount < adminMinTopup) {

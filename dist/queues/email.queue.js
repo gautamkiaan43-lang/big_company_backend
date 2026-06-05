@@ -49,10 +49,7 @@ exports.emailWorker = exports.emailQueue = void 0;
 const bullmq_1 = require("bullmq");
 const ioredis_1 = __importDefault(require("ioredis"));
 const email_service_1 = require("../services/email.service");
-const client_1 = require("@prisma/client");
-const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
-const prisma = new client_1.PrismaClient();
+const prisma_1 = __importDefault(require("../utils/prisma"));
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 console.log(`[Queue] Connecting to Redis at: ${redisUrl.includes('@') ? redisUrl.split('@')[1] : redisUrl}`);
 const connection = new ioredis_1.default(redisUrl, {
@@ -84,10 +81,26 @@ exports.emailWorker = new bullmq_1.Worker('email-queue', (job) => __awaiter(void
         return;
     }
     const { to, subject: manualSubject, html: manualHtml, templateType, data, relatedEntity, logId } = job.data;
+    console.log(`[EmailWorker] Processing job ${job.id}:`);
+    console.log(`  - Recipient: ${to}`);
+    console.log(`  - Event/Slug: ${templateType}`);
+    console.log(`  - Subject: ${manualSubject || 'Auto-resolved'}`);
     console.log(`[EmailWorker] Processing job ${job.id} for ${to} (Attempt ${job.attemptsMade + 1})`);
     try {
         let finalSubject = manualSubject;
         let finalHtml = manualHtml;
+        // Resolve the actual template name from the event slug if it is mapped
+        let resolvedTemplateName = templateType || 'GENERIC';
+        try {
+            const mapping = yield prisma_1.default.emailEvent.findUnique({
+                where: { eventSlug: resolvedTemplateName }
+            });
+            if (mapping) {
+                resolvedTemplateName = mapping.templateName;
+            }
+        }
+        catch (err) { }
+        const isSMS = resolvedTemplateName.includes('SMS') || (templateType && templateType.includes('SMS'));
         // If data is provided, we MUST use the TemplateService to get the content
         // This ensures we use the DB-stored templates if they exist (Requirement 4.2.1)
         if (data) {
@@ -98,11 +111,26 @@ exports.emailWorker = new bullmq_1.Worker('email-queue', (job) => __awaiter(void
             finalSubject = template.subject;
             finalHtml = template.html;
         }
-        // Send the email and pass the logId to track retries on the same record
-        const result = yield email_service_1.EmailService.sendEmail(to, finalSubject, finalHtml, templateType || 'MANUAL_EMAIL', relatedEntity, logId);
-        // If this was the first attempt, save the logId to job data for future retries
-        if (!logId && result.logId) {
-            yield job.updateData(Object.assign(Object.assign({}, job.data), { logId: result.logId }));
+        // ROUTING LOGIC: If resolved template name contains SMS, send via SMSService
+        if (isSMS) {
+            const { SMSService } = yield Promise.resolve().then(() => __importStar(require('../services/sms.service')));
+            // For SMS, we use the raw content from finalHtml (which is the template.html)
+            // Strip HTML tags if any (though SMS templates should be plain text)
+            const plainText = finalHtml.replace(/<[^>]*>?/gm, '');
+            const result = yield SMSService.sendSMS(to, plainText, templateType, relatedEntity, logId // Pass existing logId for retries
+            );
+            // If this was the first attempt, save the logId to job data for future retries
+            if (!logId && result.logId) {
+                yield job.updateData(Object.assign(Object.assign({}, job.data), { logId: result.logId }));
+            }
+        }
+        else {
+            // Send the email and pass the logId to track retries on the same record
+            const result = yield email_service_1.EmailService.sendEmail(to, finalSubject, finalHtml, templateType || 'MANUAL_EMAIL', relatedEntity, logId);
+            // If this was the first attempt, save the logId to job data for future retries
+            if (!logId && result.logId) {
+                yield job.updateData(Object.assign(Object.assign({}, job.data), { logId: result.logId }));
+            }
         }
     }
     catch (error) {
@@ -124,7 +152,7 @@ exports.emailWorker.on('failed', (job, err) => __awaiter(void 0, void 0, void 0,
         console.error(`[EmailWorker] Job ${job.id} permanently failed after ${job.attemptsMade} attempts.`);
         const logId = job.data.logId;
         if (logId) {
-            yield prisma.systemEmailLog.update({
+            yield prisma_1.default.systemEmailLog.update({
                 where: { id: logId },
                 data: {
                     status: 'PERMANENT_FAILURE',

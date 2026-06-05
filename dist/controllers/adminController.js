@@ -13,7 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getRetailerWholesalerLinkage = exports.getWholesalerAccountDetails = exports.getWorkerAccountDetails = exports.getRetailerAccountDetails = exports.getCustomerAccountDetails = exports.updateSystemConfig = exports.getSystemConfig = exports.getRevenueReport = exports.getTransactionReport = exports.unlinkNFCCard = exports.activateNFCCard = exports.blockNFCCard = exports.getNFCCardTransactions = exports.registerNFCCard = exports.rejectLoan = exports.approveLoan = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployees = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.getProducts = exports.deleteCustomer = exports.updateCustomerStatus = exports.updateCustomer = exports.updateWholesalerStatus = exports.updateRetailerStatus = exports.deleteWholesaler = exports.updateWholesaler = exports.verifyWholesaler = exports.verifyRetailer = exports.deleteRetailer = exports.updateRetailer = exports.deleteCategory = exports.updateCategory = exports.createCategory = exports.getCategories = exports.getNFCCards = exports.getLoans = exports.createWholesaler = exports.getWholesalers = exports.createRetailer = exports.getRetailers = exports.createCustomer = exports.getCustomer = exports.getCustomers = exports.getReports = exports.getDashboard = void 0;
-exports.sendManualEmail = exports.deleteEmailTemplate = exports.saveEmailTemplate = exports.getEmailTemplates = exports.resendEmail = exports.getEmailLogs = exports.confirmWholesaleDelivery = exports.deleteSettlementInvoice = exports.updateSettlementInvoice = exports.getSettlementInvoice = exports.createSettlementInvoice = exports.getSettlementInvoices = exports.unlinkRetailerFromWholesaler = exports.linkRetailerToWholesaler = void 0;
+exports.acknowledgeAlert = exports.getSystemAlerts = exports.updateEmailEvent = exports.getEmailEvents = exports.sendManualEmail = exports.deleteEmailTemplate = exports.saveEmailTemplate = exports.getEmailTemplates = exports.resendEmail = exports.getEmailLogs = exports.confirmWholesaleDelivery = exports.deleteSettlementInvoice = exports.updateSettlementInvoice = exports.getSettlementInvoice = exports.createSettlementInvoice = exports.getSettlementInvoices = exports.unlinkRetailerFromWholesaler = exports.linkRetailerToWholesaler = void 0;
 const prisma_1 = __importDefault(require("../utils/prisma"));
 const cloudinary_1 = require("../utils/cloudinary");
 const auth_1 = require("../utils/auth");
@@ -422,26 +422,28 @@ const createRetailer = (req, res) => __awaiter(void 0, void 0, void 0, function*
                 isActive: true
             }
         });
-        // Queue Onboarding Email
-        yield email_queue_1.emailQueue.add('onboarding-email', {
-            to: email,
-            templateType: 'ONBOARDING',
-            data: {
-                name: business_name,
-                role: 'Retailer',
-                email: email,
-                tempPass: tempPassword,
-                frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
-            },
-            relatedEntity: { type: 'USER', id: user.id.toString() }
-        });
-        yield prisma_1.default.retailerProfile.create({
+        const retailer = yield prisma_1.default.retailerProfile.create({
             data: {
                 userId: user.id,
                 shopName: business_name,
                 address,
-                creditLimit: credit_limit || 0
+                creditLimit: parseFloat(credit_limit || '0'),
+                walletBalance: 0
             }
+        });
+        // Queue Onboarding Email (RET-EMAIL-001)
+        yield email_queue_1.emailQueue.add('onboarding-email', {
+            to: email,
+            templateType: 'retailer-registration', // Mapped to RET-EMAIL-001
+            data: {
+                retail_name: business_name,
+                retail_id: retailer.id.toString(),
+                phone: phone,
+                email: email,
+                created_date: new Date().toLocaleDateString(),
+                login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/login?email=${email}&tempPass=${tempPassword}`
+            },
+            relatedEntity: { type: 'USER', id: user.id.toString() }
         });
         res.json({ success: true, message: 'Retailer created successfully' });
     }
@@ -490,16 +492,17 @@ const createWholesaler = (req, res) => __awaiter(void 0, void 0, void 0, functio
                 isActive: true
             }
         });
-        // Queue Onboarding Email
+        // Queue Onboarding Email (WHO-EMAIL-001)
         yield email_queue_1.emailQueue.add('onboarding-email', {
             to: email,
-            templateType: 'ONBOARDING',
+            templateType: 'wholesaler-registration', // Mapped to WHO-EMAIL-001
             data: {
-                name: company_name,
-                role: 'Wholesaler',
+                wholesaler_name: company_name,
+                wholesaler_id: user.id.toString(), // Using user.id as fallback for ID
+                phone: phone,
                 email: email,
-                tempPass: tempPassword,
-                frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
+                created_date: new Date().toLocaleDateString(),
+                login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/login?email=${email}&tempPass=${tempPassword}`
             },
             relatedEntity: { type: 'USER', id: user.id.toString() }
         });
@@ -582,7 +585,7 @@ const getLoans = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 amount_paid: amountPaid,
                 amount_remaining: amountRemaining,
                 status: loanStatus,
-                lender: 'BIG INNOVATION GROUP Ltd',
+                lender: 'Big Innovation Group Ltd',
                 created_at: loan.createdAt.toISOString(),
                 due_date: (_f = loan.dueDate) === null || _f === void 0 ? void 0 : _f.toISOString()
             };
@@ -651,7 +654,7 @@ const getLoans = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 amount_paid: 2000000,
                 amount_remaining: (5000000 + wInterest1) - 2000000,
                 status: 'active',
-                lender: 'BIG INNOVATION GROUP Ltd',
+                lender: 'Big Innovation Group Ltd',
                 created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
                 due_date: new Date(Date.now() + 135 * 24 * 60 * 60 * 1000).toISOString()
             },
@@ -2910,7 +2913,9 @@ const getEmailLogs = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             where.OR = [
                 { recipientEmail: { contains: search } },
                 { templateType: { contains: search } },
-                { relatedEntityId: { contains: search } }
+                { relatedEntityId: { contains: search } },
+                // @ts-ignore
+                { subject: { contains: search } }
             ];
         }
         const [logs, total] = yield Promise.all([
@@ -2950,12 +2955,10 @@ const resendEmail = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         // Add back to queue (Requirement 4.2.9)
         yield email_queue_1.emailQueue.add('manual-resend', {
             to: log.recipientEmail,
+            // @ts-ignore
             subject: log.subject,
             templateType: log.templateType,
             logId: log.id,
-            // We don't have the original 'data' object here if it was dynamic, 
-            // but if it failed, it might have been a transient issue.
-            // For full support, we'd need to store the 'data' JSON in the log.
         });
         res.json({ success: true, message: 'Email has been queued for resending' });
     }
@@ -3043,3 +3046,70 @@ const sendManualEmail = (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.sendManualEmail = sendManualEmail;
+/**
+ * Get all email event mappings
+ */
+const getEmailEvents = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        // @ts-ignore
+        const events = yield prisma_1.default.emailEvent.findMany({
+            orderBy: { eventSlug: 'asc' }
+        });
+        res.json({ success: true, events });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+exports.getEmailEvents = getEmailEvents;
+/**
+ * Update an email event mapping
+ */
+const updateEmailEvent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { templateName, description } = req.body;
+        // @ts-ignore
+        const event = yield prisma_1.default.emailEvent.update({
+            where: { id: Number(id) },
+            data: { templateName, description }
+        });
+        res.json({ success: true, event, message: 'Event mapping updated successfully' });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+exports.updateEmailEvent = updateEmailEvent;
+// ==========================================
+// SYSTEM ALERTS
+// ==========================================
+const getSystemAlerts = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const alerts = yield prisma_1.default.systemAlert.findMany({
+            orderBy: { failureTime: 'desc' }
+        });
+        res.json({ success: true, alerts });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+exports.getSystemAlerts = getSystemAlerts;
+const acknowledgeAlert = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const alert = yield prisma_1.default.systemAlert.update({
+            where: { id: Number(id) },
+            data: {
+                status: 'resolved',
+                resolvedTime: new Date()
+            }
+        });
+        res.json({ success: true, alert, message: 'Alert acknowledged successfully' });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+exports.acknowledgeAlert = acknowledgeAlert;

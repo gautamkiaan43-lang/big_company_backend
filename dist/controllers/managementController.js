@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -218,6 +251,7 @@ const getSupplierDetails = (req, res) => __awaiter(void 0, void 0, void 0, funct
 });
 exports.getSupplierDetails = getSupplierDetails;
 const createSupplier = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { name, contact_person, email, phone, address, type, payment_terms } = req.body;
         console.log('➕ Creating new supplier:', name);
@@ -243,6 +277,34 @@ const createSupplier = (req, res) => __awaiter(void 0, void 0, void 0, function*
             }
         });
         console.log('✅ Supplier created:', supplier.id);
+        // Notify Wholesaler of New Supplier (WHO-EMAIL-010)
+        try {
+            const wholesalerProfileFull = yield prisma_1.default.wholesalerProfile.findUnique({
+                where: { id: wholesalerProfile.id },
+                include: { user: true }
+            });
+            if ((_a = wholesalerProfileFull === null || wholesalerProfileFull === void 0 ? void 0 : wholesalerProfileFull.user) === null || _a === void 0 ? void 0 : _a.email) {
+                const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+                yield emailQueue.add('wholesaler-new-supplier-alert', {
+                    to: wholesalerProfileFull.user.email,
+                    templateType: 'new-supplier-added', // Mapped to WHO-EMAIL-010
+                    data: {
+                        wholesaler_name: wholesalerProfileFull.companyName,
+                        supplier_name: name,
+                        contact_person: contact_person || 'N/A',
+                        phone: phone || 'N/A',
+                        email: email || 'N/A',
+                        category: type || 'General',
+                        date_added: new Date().toLocaleDateString(),
+                        dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/management/suppliers`
+                    },
+                    relatedEntity: { type: 'SUPPLIER', id: supplier.id.toString() }
+                });
+            }
+        }
+        catch (e) {
+            console.error('Wholesaler supplier notification failed:', e);
+        }
         res.status(201).json({
             success: true,
             supplier: {

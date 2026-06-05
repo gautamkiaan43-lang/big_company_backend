@@ -85,14 +85,8 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
             prisma_1.default.sale.findMany({
                 where: { retailerId: retailerProfile.id }
             }),
-            // Inventory
             prisma_1.default.product.findMany({
-                where: {
-                    OR: [
-                        { retailerId: retailerProfile.id },
-                        { retailerId: null }
-                    ]
-                }
+                where: { retailerId: retailerProfile.id, wholesalerId: null }
             }),
             // Pending Orders (to wholesalers)
             prisma_1.default.order.findMany({
@@ -158,7 +152,7 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
             return acc;
         }, {});
         const paymentMethodsData = Object.entries(paymentStats).map(([name, value]) => ({
-            name: name === 'momo' ? 'Mobile Money' : name.charAt(0).toUpperCase() + name.slice(1),
+            name: name === 'momo' ? 'MTN Mobile Money' : name === 'airtel' ? 'Airtel Money' : name.charAt(0).toUpperCase() + name.slice(1),
             value: Math.round((value / (todaySalesAmount || 1)) * 100), // Percentage
             color: name === 'momo' ? '#ffcc00' : name === 'cash' ? '#52c41a' : '#1890ff'
         }));
@@ -279,39 +273,10 @@ const getInventory = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         }
         // 1. Get Retailer's own inventory (and global items)
         const myProducts = yield prisma_1.default.product.findMany({
-            where: {
-                OR: [
-                    { retailerId: retailerProfile.id },
-                    { retailerId: null }
-                ]
-            },
+            where: { retailerId: retailerProfile.id, wholesalerId: null },
             orderBy: { name: 'asc' }
         });
-        // 2. Get Global Catalog (Wholesaler products)
-        const catalogProducts = yield prisma_1.default.product.findMany({
-            where: { wholesalerId: { not: null } },
-            include: { wholesalerProfile: true },
-            orderBy: { name: 'asc' }
-        });
-        // 3. Merge: If retailer has the product, use theirs. If not, show catalog item (stock 0)
-        // We match by SKU if available, otherwise Name
-        const myProductMap = new Map();
-        myProducts.forEach(p => {
-            const key = p.sku || p.name;
-            myProductMap.set(key, p);
-        });
-        const mergedInventory = [...myProducts];
-        catalogProducts.forEach(cp => {
-            const key = cp.sku || cp.name;
-            if (!myProductMap.has(key)) {
-                // Retailer doesn't have this one yet. Add as potential item.
-                mergedInventory.push(Object.assign(Object.assign({}, cp), { id: cp.id, retailerId: retailerProfile.id, stock: 0, price: cp.price * 1.2, costPrice: cp.price, status: 'catalog_item' // distinct status
-                 }));
-            }
-        });
-        // Sort combined list
-        mergedInventory.sort((a, b) => a.name.localeCompare(b.name));
-        res.json({ products: mergedInventory });
+        res.json({ products: myProducts });
     }
     catch (error) {
         res.status(500).json({ error: error.message });
@@ -366,28 +331,60 @@ const createProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 return res.status(400).json({ error: 'Invoice already imported' });
             }
             const createdProducts = [];
+            const updatedProducts = [];
             for (const item of order.orderItems) {
                 const sourceProduct = item.product;
-                // Create new inventory item
-                const newProduct = yield prisma_1.default.product.create({
-                    data: {
-                        name: sourceProduct.name,
-                        description: sourceProduct.description,
-                        sku: sourceProduct.sku, // Keep SKU or generate new? Keeping same simplifies tracking.
-                        category: sourceProduct.category,
-                        price: sourceProduct.price * 1.2, // Default markup 20%
-                        costPrice: item.price, // Cost is what they paid in the order
-                        stock: item.quantity,
-                        unit: sourceProduct.unit,
-                        invoiceNumber: invoice_number,
-                        retailerId: retailerProfile.id,
-                        image: sourceProduct.image,
-                        status: 'active'
+                const existingProduct = yield prisma_1.default.product.findFirst({
+                    where: {
+                        AND: [
+                            { retailerId: retailerProfile.id },
+                            {
+                                OR: [
+                                    sourceProduct.barcode ? { barcode: sourceProduct.barcode } : { id: -1 },
+                                    sourceProduct.sku ? { sku: sourceProduct.sku } : { id: -1 },
+                                    { name: sourceProduct.name }
+                                ]
+                            }
+                        ]
                     }
                 });
-                createdProducts.push(newProduct);
+                if (existingProduct) {
+                    const updateData = {
+                        stock: { increment: item.quantity },
+                        costPrice: item.price,
+                        status: 'active'
+                    };
+                    if (!existingProduct.retailerId) {
+                        updateData.retailerId = retailerProfile.id;
+                    }
+                    const updatedProduct = yield prisma_1.default.product.update({
+                        where: { id: existingProduct.id },
+                        data: updateData
+                    });
+                    updatedProducts.push(updatedProduct);
+                }
+                else {
+                    // Create new inventory item
+                    const newProduct = yield prisma_1.default.product.create({
+                        data: {
+                            name: sourceProduct.name,
+                            description: sourceProduct.description,
+                            sku: sourceProduct.sku,
+                            category: sourceProduct.category,
+                            price: sourceProduct.price * 1.2, // Default markup 20%
+                            costPrice: item.price, // Cost is what they paid in the order
+                            stock: item.quantity,
+                            unit: sourceProduct.unit,
+                            invoiceNumber: invoice_number,
+                            retailerId: retailerProfile.id,
+                            image: sourceProduct.image,
+                            status: 'active'
+                        }
+                    });
+                    createdProducts.push(newProduct);
+                }
             }
-            return res.json({ success: true, count: createdProducts.length, message: `Imported ${createdProducts.length} items from invoice` });
+            return res.json({ success: true, count: createdProducts.length + updatedProducts.length, message: `Imported ${createdProducts.length} new items and updated ${updatedProducts.length} items from invoice` });
         }
         // --- Manual Flow (Single Product) ---
         // Validate required fields for manual creation
@@ -398,6 +395,14 @@ const createProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         let imageUrl = image;
         if (image && image.startsWith('data:image')) {
             imageUrl = yield (0, cloudinary_1.uploadImage)(image);
+        }
+        if (sku) {
+            const duplicateSku = yield prisma_1.default.product.findFirst({
+                where: { retailerId: retailerProfile.id, sku: sku }
+            });
+            if (duplicateSku) {
+                return res.status(400).json({ error: 'A product with this SKU already exists in your inventory.' });
+            }
         }
         const product = yield prisma_1.default.product.create({
             data: {
@@ -424,7 +429,21 @@ exports.createProduct = createProduct;
 const updateProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const { name, description, category, price, costPrice, stock, image } = req.body;
+        const { name, description, category, price, costPrice, stock, image, sku } = req.body;
+        // Validate SKU uniqueness
+        if (sku) {
+            const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
+                where: { userId: req.user.id }
+            });
+            if (retailerProfile) {
+                const duplicateSku = yield prisma_1.default.product.findFirst({
+                    where: { retailerId: retailerProfile.id, sku: sku, id: { not: Number(id) } }
+                });
+                if (duplicateSku) {
+                    return res.status(400).json({ error: 'A product with this SKU already exists in your inventory.' });
+                }
+            }
+        }
         // Upload to Cloudinary if new image is provided as base64
         let imageUrl = image;
         if (image && image.startsWith('data:image')) {
@@ -667,6 +686,7 @@ const getPOSProducts = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const { search, limit = '50', offset = '0' } = req.query;
         const where = {
             retailerId: retailerProfile.id, // Only show products belonging to this retailer
+            wholesalerId: null, // Never show wholesaler catalog products in POS
             status: 'active',
             stock: { gt: 0 } // Only show products with stock available
         };
@@ -726,7 +746,7 @@ const scanBarcode = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 exports.scanBarcode = scanBarcode;
 // Create Sale (Retailer POS)
 const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c, _d;
     try {
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
             where: { userId: req.user.id }
@@ -848,7 +868,7 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             }
             // --- Handle PalmKash (Mobile Money) ---
             let externalRef = null;
-            if (payment_method === 'mobile_money' || payment_method === 'momo') {
+            if (payment_method === 'mobile_money' || payment_method === 'momo' || payment_method === 'airtel' || payment_method === 'airtel' || payment_method === 'airtel') {
                 if (!customer_phone)
                     throw new Error('Customer phone required for mobile money payment');
                 const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
@@ -957,7 +977,7 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         }), { timeout: 20000 });
         // --- Post-Transaction Event Triggers ---
         try {
-            // 1. Notify Retailer of Low Stock for any items in the sale
+            // 1. Notify Retailer of Low Stock for any items in the sale (RET-EMAIL-013)
             const soldProductIds = items.map((i) => Number(i.product_id));
             const soldProducts = yield prisma_1.default.product.findMany({
                 where: { id: { in: soldProductIds } },
@@ -965,12 +985,31 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             });
             for (const product of soldProducts) {
                 const threshold = product.lowStockThreshold || 10;
-                if (product.stock <= threshold && ((_b = (_a = product.retailerProfile) === null || _a === void 0 ? void 0 : _a.user) === null || _b === void 0 ? void 0 : _b.email)) {
+                if (product.stock <= 0 && ((_b = (_a = product.retailerProfile) === null || _a === void 0 ? void 0 : _a.user) === null || _b === void 0 ? void 0 : _b.email)) {
+                    // Out of Stock (RET-EMAIL-014)
+                    yield email_queue_1.emailQueue.add('out-of-stock-alert', {
+                        to: product.retailerProfile.user.email,
+                        templateType: 'out-of-stock', // Mapped to RET-EMAIL-014
+                        data: {
+                            retail_name: product.retailerProfile.shopName,
+                            product: product.name,
+                            restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/inventory`
+                        },
+                        relatedEntity: { type: 'PRODUCT', id: product.id.toString() }
+                    });
+                }
+                else if (product.stock <= threshold && ((_d = (_c = product.retailerProfile) === null || _c === void 0 ? void 0 : _c.user) === null || _d === void 0 ? void 0 : _d.email)) {
+                    // Low Stock (RET-EMAIL-013)
                     yield email_queue_1.emailQueue.add('low-stock-alert', {
                         to: product.retailerProfile.user.email,
-                        subject: `⚠️ Low Stock Alert: ${product.name}`,
-                        html: template_service_1.TemplateService.getLowStockTemplate(product.name, product.stock, threshold),
-                        templateType: 'RETAILER_LOW_STOCK',
+                        templateType: 'low-stock', // Mapped to RET-EMAIL-013
+                        data: {
+                            retail_name: product.retailerProfile.shopName,
+                            product: product.name,
+                            remaining_quantity: product.stock,
+                            minimum_required: threshold,
+                            restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/inventory`
+                        },
                         relatedEntity: { type: 'PRODUCT', id: product.id.toString() }
                     });
                 }
@@ -1271,7 +1310,7 @@ exports.getWholesalerProducts = getWholesalerProducts;
 // Create Wholesaler Order
 // ACCOUNT LINKING ENFORCEMENT: Retailer can ONLY order from ONE Wholesaler after approval
 const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     try {
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
             where: { userId: req.user.id },
@@ -1410,21 +1449,34 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             if ((_b = wholesaler === null || wholesaler === void 0 ? void 0 : wholesaler.user) === null || _b === void 0 ? void 0 : _b.email) {
                 yield email_queue_1.emailQueue.add('new-order-alert', {
                     to: wholesaler.user.email,
-                    subject: `📦 New Order from ${retailerProfile.shopName}: #${result.id}`,
-                    html: template_service_1.TemplateService.getOrderConfirmationTemplate(result.id.toString(), items.reduce((sum, i) => sum + i.quantity, 0), totalAmount),
-                    templateType: 'WHOLESALER_NEW_ORDER',
+                    templateType: 'retailer-order-request', // Mapped to WHO-EMAIL-003
+                    data: {
+                        wholesaler_name: wholesaler.companyName,
+                        retail_name: retailerProfile.shopName,
+                        order_id: result.id.toString(),
+                        product: items.length > 1 ? `${items[0].product_name} and others` : items[0].product_name,
+                        quantity: items.reduce((sum, i) => sum + i.quantity, 0).toString(),
+                        amount: totalAmount.toLocaleString(),
+                        order_date: new Date().toLocaleDateString(),
+                        dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/orders`
+                    },
                     relatedEntity: { type: 'ORDER', id: result.id.toString() }
                 });
             }
-            // 3. Notify Retailer of Low Wallet Balance (PRD 2.A.ii)
+            // 3. Notify Retailer of Low Wallet Balance (RET-EMAIL-016)
             if (paymentMethod === 'wallet') {
                 const remainingBalance = retailerProfile.walletBalance - totalAmount;
                 if (remainingBalance < 5000 && ((_c = retailerProfile.user) === null || _c === void 0 ? void 0 : _c.email)) {
-                    yield email_queue_1.emailQueue.add('wallet-balance-low', {
+                    yield email_queue_1.emailQueue.add('low-wallet-balance', {
                         to: retailerProfile.user.email,
-                        subject: '⚠️ Wallet Balance Low',
-                        html: template_service_1.TemplateService.getWalletNotificationTemplate('LOW_BALANCE', 0, remainingBalance),
-                        templateType: 'RETAILER_WALLET_WARNING'
+                        templateType: 'low-wallet-balance', // Mapped to RET-EMAIL-016
+                        data: {
+                            retail_name: retailerProfile.shopName,
+                            current_balance: remainingBalance.toLocaleString(),
+                            minimum_balance: '5,000',
+                            topup_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/wallet`
+                        },
+                        relatedEntity: { type: 'RETAILER', id: retailerProfile.id.toString() }
                     });
                 }
             }
@@ -1436,6 +1488,26 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     }
     catch (error) {
         console.error('Create order failed:', error);
+        // Notify Retailer of Failed Order (RET-EMAIL-018)
+        try {
+            const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
+                where: { userId: req.user.id },
+                include: { user: true }
+            });
+            if ((_d = retailerProfile === null || retailerProfile === void 0 ? void 0 : retailerProfile.user) === null || _d === void 0 ? void 0 : _d.email) {
+                yield email_queue_1.emailQueue.add('order-failed-alert', {
+                    to: retailerProfile.user.email,
+                    templateType: 'order-failed', // Mapped to RET-EMAIL-018
+                    data: {
+                        retail_name: retailerProfile.shopName,
+                        order_id: 'N/A',
+                        date: new Date().toLocaleDateString(),
+                        reason: error.message
+                    }
+                });
+            }
+        }
+        catch (e) { }
         res.status(500).json({ error: error.message });
     }
 });
@@ -1645,9 +1717,11 @@ const getCreditOrder = (req, res) => __awaiter(void 0, void 0, void 0, function*
 exports.getCreditOrder = getCreditOrder;
 // Request Credit
 const requestCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     try {
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!retailerProfile) {
             return res.status(404).json({ error: 'Retailer profile not found' });
@@ -1657,7 +1731,7 @@ const requestCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             return res.status(400).json({ error: 'Invalid amount' });
         }
         // Create CreditRequest
-        yield prisma_1.default.creditRequest.create({
+        const creditRequest = yield prisma_1.default.creditRequest.create({
             data: {
                 retailerId: retailerProfile.id,
                 amount: parseFloat(amount),
@@ -1665,6 +1739,42 @@ const requestCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 status: 'pending'
             }
         });
+        // Notify Wholesaler of New Credit Request (WHO-EMAIL-006)
+        const wholesaler = yield prisma_1.default.wholesalerProfile.findUnique({
+            where: { id: retailerProfile.linkedWholesalerId || 0 },
+            include: { user: true }
+        });
+        if ((_a = wholesaler === null || wholesaler === void 0 ? void 0 : wholesaler.user) === null || _a === void 0 ? void 0 : _a.email) {
+            yield email_queue_1.emailQueue.add('wholesaler-credit-alert', {
+                to: wholesaler.user.email,
+                templateType: 'wholesaler-credit-request', // Mapped to WHO-EMAIL-006
+                data: {
+                    wholesaler_name: wholesaler.companyName,
+                    retail_name: retailerProfile.shopName,
+                    request_id: creditRequest.id.toString(),
+                    credit_amount: amount.toLocaleString(),
+                    request_date: new Date().toLocaleDateString(),
+                    reason: reason || 'Business inventory purchase',
+                    dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/credit`
+                },
+                relatedEntity: { type: 'CREDIT_REQUEST', id: creditRequest.id.toString() }
+            });
+        }
+        // Notify Retailer (RET-EMAIL-008)
+        if ((_b = retailerProfile.user) === null || _b === void 0 ? void 0 : _b.email) {
+            yield email_queue_1.emailQueue.add('credit-request-submitted', {
+                to: retailerProfile.user.email,
+                templateType: 'credit-request-submitted', // Mapped to RET-EMAIL-008
+                data: {
+                    retail_name: retailerProfile.shopName,
+                    request_id: creditRequest.id.toString(),
+                    credit_amount: amount.toLocaleString(),
+                    request_date: new Date().toLocaleDateString(),
+                    reason: reason || 'Business inventory purchase'
+                },
+                relatedEntity: { type: 'CREDIT_REQUEST', id: creditRequest.id.toString() }
+            });
+        }
         res.json({ success: true, message: 'Credit request submitted successfully' });
     }
     catch (error) {
@@ -1693,7 +1803,7 @@ const makeRepayment = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             return res.status(404).json({ error: 'Order not found' });
         // 2. PalmKash Integration for MoMo
         let externalRef = null;
-        if (paymentMethod === 'mobile_money' || paymentMethod === 'momo') {
+        if (paymentMethod === 'mobile_money' || paymentMethod === 'momo' || paymentMethod === 'airtel' || paymentMethod === 'airtel' || paymentMethod === 'airtel') {
             const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
             const pmResult = yield palmKash.initiatePayment({
                 amount: parseFloat(amount),
@@ -1764,7 +1874,7 @@ const payCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         }
         // 1. PalmKash Integration for MoMo
         let externalRef = null;
-        if (paymentMethod === 'mobile_money' || paymentMethod === 'momo') {
+        if (paymentMethod === 'mobile_money' || paymentMethod === 'momo' || paymentMethod === 'airtel' || paymentMethod === 'airtel' || paymentMethod === 'airtel') {
             const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
             const pmResult = yield palmKash.initiatePayment({
                 amount: parseFloat(amount),
@@ -1785,6 +1895,7 @@ const payCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         }
         // Transaction
         yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a, _b;
             // Debit Wallet if chosen
             if (paymentMethod === 'wallet') {
                 yield tx.retailerProfile.update({
@@ -1804,7 +1915,7 @@ const payCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 });
             }
             // Create a WalletTransaction record for audit
-            yield tx.walletTransaction.create({
+            const txRecord = yield tx.walletTransaction.create({
                 data: {
                     retailerId: retailerProfile.id,
                     type: 'credit_repayment',
@@ -1814,6 +1925,46 @@ const payCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                     status: 'completed'
                 }
             });
+            // Notify Retailer (RET-EMAIL-010)
+            if ((_a = retailerProfile.user) === null || _a === void 0 ? void 0 : _a.email) {
+                const creditInfo = yield tx.retailerCredit.findUnique({ where: { retailerId: retailerProfile.id } });
+                yield email_queue_1.emailQueue.add('credit-payment-confirmation', {
+                    to: retailerProfile.user.email,
+                    templateType: 'credit-payment-confirmation', // Mapped to RET-EMAIL-010
+                    data: {
+                        retail_name: retailerProfile.shopName,
+                        paid_amount: amount.toLocaleString(),
+                        remaining_balance: ((creditInfo === null || creditInfo === void 0 ? void 0 : creditInfo.usedCredit) || 0).toLocaleString(),
+                        payment_date: new Date().toLocaleDateString(),
+                        transaction_id: txRecord.reference
+                    },
+                    relatedEntity: { type: 'TRANSACTION', id: txRecord.id.toString() }
+                });
+            }
+            // Notify Wholesaler (WHO-EMAIL-008)
+            if (retailerProfile.linkedWholesalerId) {
+                const wholesaler = yield tx.wholesalerProfile.findUnique({
+                    where: { id: retailerProfile.linkedWholesalerId },
+                    include: { user: true }
+                });
+                if ((_b = wholesaler === null || wholesaler === void 0 ? void 0 : wholesaler.user) === null || _b === void 0 ? void 0 : _b.email) {
+                    const creditInfo = yield tx.retailerCredit.findUnique({ where: { retailerId: retailerProfile.id } });
+                    yield email_queue_1.emailQueue.add('wholesaler-payment-alert', {
+                        to: wholesaler.user.email,
+                        templateType: 'wholesaler-credit-payment-received', // Mapped to WHO-EMAIL-008
+                        data: {
+                            wholesaler_name: wholesaler.companyName,
+                            retail_name: retailerProfile.shopName,
+                            paid_amount: amount.toLocaleString(),
+                            remaining_balance: ((creditInfo === null || creditInfo === void 0 ? void 0 : creditInfo.usedCredit) || 0).toLocaleString(),
+                            payment_date: new Date().toLocaleDateString(),
+                            transaction_id: txRecord.reference,
+                            dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/credit`
+                        },
+                        relatedEntity: { type: 'TRANSACTION', id: txRecord.id.toString() }
+                    });
+                }
+            }
         }));
         res.json({ success: true, message: 'Repayment successful' });
     }
@@ -1961,7 +2112,7 @@ const topUpWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         // ==========================================
         let externalRef = null;
         let transactionRef = `TOPUP-${Date.now()}`; // Correct prefix for webhook
-        if (source === 'mobile_money' || source === 'momo') {
+        if (source === 'mobile_money' || source === 'momo' || source === 'airtel' || source === 'airtel' || source === 'airtel') {
             console.log(`📡 [topUpWallet] Initiating PalmKash payment for phone: ${req.body.phone || ((_a = retailerProfile.user) === null || _a === void 0 ? void 0 : _a.phone)}`);
             const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
             const pmResult = yield palmKash.initiatePayment({
@@ -2228,13 +2379,15 @@ exports.getAvailableWholesalers = getAvailableWholesalers;
 // Send link request to wholesaler
 // RULE: Retailer can send request to ONLY ONE wholesaler at a time
 const sendLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     try {
         const { wholesalerId, message } = req.body;
         if (!wholesalerId) {
             return res.status(400).json({ success: false, error: 'Wholesaler ID is required' });
         }
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!retailerProfile) {
             return res.status(404).json({ success: false, error: 'Retailer profile not found' });
@@ -2315,6 +2468,25 @@ const sendLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, function
                 status: 'pending'
             }
         });
+        // Notify Wholesaler of New Link Request (WHO-EMAIL-005)
+        const wholesalerFull = yield prisma_1.default.wholesalerProfile.findUnique({
+            where: { id: wholesalerId },
+            include: { user: true }
+        });
+        if ((_a = wholesalerFull === null || wholesalerFull === void 0 ? void 0 : wholesalerFull.user) === null || _a === void 0 ? void 0 : _a.email) {
+            yield email_queue_1.emailQueue.add('wholesaler-link-request-alert', {
+                to: wholesalerFull.user.email,
+                templateType: 'wholesaler-link-request', // Mapped to WHO-EMAIL-005
+                data: {
+                    wholesaler_name: wholesalerFull.companyName,
+                    retail_name: retailerProfile.shopName,
+                    retail_phone: ((_b = retailerProfile.user) === null || _b === void 0 ? void 0 : _b.phone) || 'N/A',
+                    request_date: new Date().toLocaleDateString(),
+                    dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/partners`
+                },
+                relatedEntity: { type: 'LINK_REQUEST', id: linkRequest.id.toString() }
+            });
+        }
         res.json({
             success: true,
             message: 'Link request sent successfully',
@@ -2942,6 +3114,7 @@ const confirmPurchaseOrderDelivery = (req, res) => __awaiter(void 0, void 0, voi
                         where: { id: existingProduct.id },
                         data: {
                             stock: { increment: item.quantity },
+                            costPrice: item.price,
                             status: 'active'
                         }
                     });

@@ -12,10 +12,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handlePalmKashWebhook = void 0;
+exports.handleIntouchSMSWebhook = exports.handlePalmKashWebhook = void 0;
 const prisma_1 = __importDefault(require("../utils/prisma"));
 const email_queue_1 = require("../queues/email.queue");
-const template_service_1 = require("../services/template.service");
 const handlePalmKashWebhook = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
@@ -66,9 +65,15 @@ const handlePalmKashWebhook = (req, res) => __awaiter(void 0, void 0, void 0, fu
                     if ((_a = retailer === null || retailer === void 0 ? void 0 : retailer.user) === null || _a === void 0 ? void 0 : _a.email) {
                         yield email_queue_1.emailQueue.add('wallet-recharge-success', {
                             to: retailer.user.email,
-                            subject: '✅ Wallet Recharge Successful',
-                            html: template_service_1.TemplateService.getWalletNotificationTemplate('RECHARGE_SUCCESS', transaction.amount, retailer.walletBalance + transaction.amount, activeReference),
-                            templateType: 'RETAILER_WALLET_UPDATE'
+                            templateType: 'wallet-topup-success', // Mapped to RET-EMAIL-006
+                            data: {
+                                retail_name: retailer.shopName,
+                                amount: transaction.amount.toLocaleString(),
+                                new_balance: (retailer.walletBalance + transaction.amount).toLocaleString(),
+                                transaction_id: activeReference,
+                                topup_date: new Date().toLocaleDateString()
+                            },
+                            relatedEntity: { type: 'TRANSACTION', id: transaction.id.toString() }
                         });
                     }
                 }
@@ -136,3 +141,46 @@ const handlePalmKashWebhook = (req, res) => __awaiter(void 0, void 0, void 0, fu
     }
 });
 exports.handlePalmKashWebhook = handlePalmKashWebhook;
+const handleIntouchSMSWebhook = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { messageid, status } = req.query;
+        console.log(`📱 [IntouchSMS Webhook] Received DLR. MsgID: ${messageid}, Status: ${status}`);
+        if (!messageid) {
+            return res.status(400).send('Missing messageid');
+        }
+        // Map Intouch statuses to system status
+        // P: Processed, D: Delivered, Q: Queued, E: Errored, S: Sent, U: Undelivered
+        let systemStatus = 'SENT';
+        if (status === 'D')
+            systemStatus = 'DELIVERED';
+        if (status === 'E' || status === 'U')
+            systemStatus = 'FAILED';
+        if (status === 'P' || status === 'Q')
+            systemStatus = 'PENDING';
+        // Find the log entry by external message ID
+        const searchCriteria = { externalMessageId: messageid.toString() };
+        const log = yield prisma_1.default.systemEmailLog.findFirst({
+            where: searchCriteria
+        });
+        if (log) {
+            yield prisma_1.default.systemEmailLog.update({
+                where: { id: log.id },
+                data: {
+                    status: systemStatus,
+                    errorMessage: status === 'E' || status === 'U' ? `Gateway reported status: ${status}` : null
+                }
+            });
+            console.log(`✅ [IntouchSMS Webhook] Updated log ${log.id} to ${systemStatus}`);
+        }
+        else {
+            console.warn(`⚠️ [IntouchSMS Webhook] No log found for messageid: ${messageid}`);
+        }
+        // Intouch expects 200 OK
+        res.status(200).send('OK');
+    }
+    catch (error) {
+        console.error('❌ [IntouchSMS Webhook Error]:', error.message);
+        res.status(500).send('Error');
+    }
+});
+exports.handleIntouchSMSWebhook = handleIntouchSMSWebhook;

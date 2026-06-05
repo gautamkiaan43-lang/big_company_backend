@@ -159,7 +159,7 @@ const getGasMeters = (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     owner_name: m.ownerName,
                     owner_phone: m.ownerPhone,
                     status: m.status,
-                    meter_type: m.meterType || ((m.meterNumber && (m.meterNumber.includes('645424') || m.meterNumber.includes('399703'))) ? 'TOKEN' : 'PIPING'),
+                    meter_type: m.meterType || (m.isGprs ? 'PIPING' : 'TOKEN'),
                     current_units: m.currentUnits,
                     created_at: m.createdAt
                 };
@@ -453,6 +453,26 @@ const topupGas = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             },
             message: 'Gas topup successful'
         });
+        // Trigger Customer Gas Recharge SMS (CUS-SMS-004)
+        try {
+            const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+            yield emailQueue.add('gas-recharge-success', {
+                to: consumerProfile.user.phone,
+                templateType: 'gas-recharge-success', // Mapped to CUS-SMS-004
+                data: {
+                    customer_name: consumerProfile.fullName || consumerProfile.user.name || 'Valued Customer',
+                    meter_name: meter.aliasName || 'Meter',
+                    meter_id: meter_number,
+                    amount: amount.toLocaleString(),
+                    token: token,
+                    transaction_id: order.id.toString()
+                },
+                relatedEntity: { type: 'GAS_ORDER', id: order.id.toString() }
+            });
+        }
+        catch (err) {
+            console.error('Gas recharge notification failed:', err);
+        }
     }
     catch (error) {
         console.error('Topup gas error:', error);

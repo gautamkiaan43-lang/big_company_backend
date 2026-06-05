@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -438,6 +471,7 @@ const getCreditRequestsWithStats = (req, res) => __awaiter(void 0, void 0, void 
 exports.getCreditRequestsWithStats = getCreditRequestsWithStats;
 // Approve credit request
 const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { id } = req.params;
         const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
@@ -492,6 +526,39 @@ const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, fun
         }), {
             timeout: 20000 // Increase timeout to 20 seconds
         });
+        // 4. Trigger Wholesaler Notification (WHO-EMAIL-007)
+        try {
+            const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
+                where: { userId: req.user.id },
+                include: { user: true }
+            });
+            if ((_a = wholesalerProfile === null || wholesalerProfile === void 0 ? void 0 : wholesalerProfile.user) === null || _a === void 0 ? void 0 : _a.email) {
+                const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+                const retailer = yield prisma_1.default.retailerProfile.findUnique({
+                    where: { id: result.retailerId },
+                    include: { user: true }
+                });
+                if (retailer) {
+                    yield emailQueue.add('wholesaler-credit-approved-alert', {
+                        to: wholesalerProfile.user.email,
+                        templateType: 'wholesaler-credit-approved', // Mapped to WHO-EMAIL-007
+                        data: {
+                            wholesaler_name: wholesalerProfile.companyName,
+                            retail_name: retailer.shopName,
+                            approved_amount: result.amount.toLocaleString(),
+                            repayment_period: '30 Days',
+                            due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                            interest_rate: '5%',
+                            dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/credit`
+                        },
+                        relatedEntity: { type: 'CREDIT_REQUEST', id: result.id.toString() }
+                    });
+                }
+            }
+        }
+        catch (err) {
+            console.error('Wholesaler credit notification failed:', err);
+        }
         res.json({ success: true, creditRequest: result });
     }
     catch (error) {

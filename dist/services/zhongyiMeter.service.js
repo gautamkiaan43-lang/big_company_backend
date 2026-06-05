@@ -35,6 +35,30 @@ class ZhongyiMeterService {
         };
     }
     /**
+     * Translates common Chinese errors from the Zhongyi API to English
+     */
+    translateError(msg) {
+        if (!msg)
+            return msg;
+        const translationMap = {
+            '表不存在': 'Meter does not exist',
+            '户号不存在': 'Account does not exist',
+            '余额不足': 'Insufficient balance',
+            '网络异常': 'Network error',
+            '参数错误': 'Parameter error',
+            '设备离线': 'Device offline',
+            '表已存在': 'Meter already exists',
+            '系统异常': 'System error'
+        };
+        let translatedMsg = msg;
+        for (const [ch, en] of Object.entries(translationMap)) {
+            if (translatedMsg.includes(ch)) {
+                translatedMsg = translatedMsg.replace(new RegExp(ch, 'g'), en);
+            }
+        }
+        return translatedMsg;
+    }
+    /**
      * Generates a dynamic Date-Formatted TID based on current time.
      * Required format for this account: yyyy-MM-ddTHH:mm (e.g., 2026-04-03T18:10)
      */
@@ -200,12 +224,13 @@ class ZhongyiMeterService {
                 };
             }
             // 5. FAILSAFE ERROR RETURN
+            const translatedError = this.translateError(lastError);
             return {
                 success: false,
-                error: lastError,
+                error: translatedError,
                 meterNumber: meterNumber,
                 amount: params.amount,
-                message: lastError
+                message: translatedError
             };
         });
     }

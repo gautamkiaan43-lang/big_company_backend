@@ -83,7 +83,7 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         }
         log('Checking for mobile money payment...');
         let externalRef = null;
-        if (paymentMethod === 'mobile_money' || paymentMethod === 'momo') {
+        if (paymentMethod === 'mobile_money' || paymentMethod === 'momo' || paymentMethod === 'airtel' || paymentMethod === 'airtel' || paymentMethod === 'airtel') {
             log('Mobile money detected, importing palmKash service...');
             const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
             log('PalmKash service imported');
@@ -805,6 +805,7 @@ const cancelOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 });
 exports.cancelOrder = cancelOrder;
 const confirmDelivery = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { id } = req.params;
         const userId = req.user.id;
@@ -841,6 +842,30 @@ const confirmDelivery = (req, res) => __awaiter(void 0, void 0, void 0, function
             }
         }
         res.json({ success: true, message: 'Delivery confirmed and inventory reduced' });
+        // Trigger Customer SMS Notification (CUS-SMS-002)
+        try {
+            const consumer = yield prisma_1.default.consumerProfile.findUnique({
+                where: { id: updatedSale.consumerId },
+                include: { user: true }
+            });
+            if ((_a = consumer === null || consumer === void 0 ? void 0 : consumer.user) === null || _a === void 0 ? void 0 : _a.phone) {
+                const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+                yield emailQueue.add('order-delivered-sms', {
+                    to: consumer.user.phone,
+                    templateType: 'order-delivered-sms', // Mapped to CUS-SMS-002
+                    data: {
+                        customer_name: consumer.fullName || consumer.user.name || 'Customer',
+                        order_id: updatedSale.id.toString(),
+                        amount: updatedSale.totalAmount.toLocaleString(),
+                        delivery_date: new Date().toLocaleDateString()
+                    },
+                    relatedEntity: { type: 'SALE', id: updatedSale.id.toString() }
+                });
+            }
+        }
+        catch (err) {
+            console.error('Customer delivery notification failed:', err);
+        }
     }
     catch (error) {
         res.status(500).json({ error: error.message });
@@ -1016,7 +1041,7 @@ const repayLoan = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         // PALMKASH INTEGRATION
         // ==========================================
         let externalRef = null;
-        if (payment_method === 'mobile_money' || payment_method === 'momo') {
+        if (payment_method === 'mobile_money' || payment_method === 'momo' || payment_method === 'airtel' || payment_method === 'airtel' || payment_method === 'airtel') {
             const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
             const pmResult = yield palmKash.initiatePayment({
                 amount: parseFloat(amount),

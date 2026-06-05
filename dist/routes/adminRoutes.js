@@ -125,4 +125,10 @@ router.post('/email-templates', adminController_1.saveEmailTemplate);
 router.delete('/email-templates/:id', adminController_1.deleteEmailTemplate);
 // Manual Email Sending
 router.post('/send-manual-email', adminController_1.sendManualEmail);
+// Email Event Mapping Routes
+router.get('/email-events', adminController_1.getEmailEvents);
+router.put('/email-events/:id', adminController_1.updateEmailEvent);
+// System Alerts
+router.get('/alerts', adminController_1.getSystemAlerts);
+router.post('/alerts/:id/acknowledge', adminController_1.acknowledgeAlert);
 exports.default = router;

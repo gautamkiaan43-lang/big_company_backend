@@ -45,6 +45,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePin = exports.updatePassword = exports.login = exports.register = void 0;
 const prisma_1 = __importStar(require("../utils/prisma"));
 const auth_1 = require("../utils/auth");
+const email_queue_1 = require("../queues/email.queue");
 const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, password, phone, pin, role, first_name, last_name, business_name, shop_name, company_name } = req.body;
@@ -115,6 +116,24 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         const token = (0, auth_1.generateToken)({ id: user.id, role: user.role });
+        // Trigger Customer Signup SMS (CUS-SMS-001)
+        if (targetuser_role === 'consumer' && user.phone) {
+            try {
+                const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+                yield emailQueue.add('customer-signup', {
+                    to: user.phone,
+                    templateType: 'customer-signup', // Mapped to CUS-SMS-001
+                    data: {
+                        customer_name: user.name || 'Valued Customer',
+                        customer_id: user.id.toString()
+                    },
+                    relatedEntity: { type: 'USER', id: user.id.toString() }
+                });
+            }
+            catch (err) {
+                console.error('Customer signup notification failed:', err);
+            }
+        }
         res.json({
             success: true,
             access_token: token,
@@ -182,11 +201,68 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 valid = true;
         }
         if (!valid) {
-            // Fallback for "demo" usage - if strict auth fails, check for mocked credentials?
-            // No, I'm building a real backend. Validation must pass.
+            // Notify Retailer of Failed Login (RET-EMAIL-017)
+            if (user.role === 'retailer' && user.email) {
+                yield email_queue_1.emailQueue.add('failed-login-alert', {
+                    to: user.email,
+                    templateType: 'failed-login', // Mapped to RET-EMAIL-017
+                    data: {
+                        retail_name: user.name || 'Retailer',
+                        attempt_time: new Date().toLocaleString(),
+                        device: req.headers['user-agent'] || 'Unknown Device',
+                        ip: req.ip || 'Unknown'
+                    },
+                    relatedEntity: { type: 'USER', id: user.id.toString() }
+                });
+            }
+            // Notify Wholesaler of Failed Login (WHO-EMAIL-016)
+            if (user.role === 'wholesaler' && user.email) {
+                yield email_queue_1.emailQueue.add('failed-login-alert', {
+                    to: user.email,
+                    templateType: 'wholesaler-failed-login', // Mapped to WHO-EMAIL-016
+                    data: {
+                        wholesaler_name: user.name || 'Wholesaler',
+                        attempt_time: new Date().toLocaleString(),
+                        device: req.headers['user-agent'] || 'Unknown Device',
+                        ip: req.ip || 'Unknown'
+                    },
+                    relatedEntity: { type: 'USER', id: user.id.toString() }
+                });
+            }
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         const token = (0, auth_1.generateToken)({ id: user.id, role: user.role });
+        // Notify Retailer of Suspicious Activity (RET-EMAIL-015)
+        if (user.role === 'retailer' && user.email) {
+            yield email_queue_1.emailQueue.add('suspicious-activity-alert', {
+                to: user.email,
+                templateType: 'suspicious-activity', // Mapped to RET-EMAIL-015
+                data: {
+                    retail_name: user.name || 'Retailer',
+                    activity_type: 'New Device Login',
+                    activity_time: new Date().toLocaleString(),
+                    location: 'Kigali, Rwanda (Approx)',
+                    device: req.headers['user-agent'] || 'Unknown Device',
+                    action_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/security`
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
+        // Notify Wholesaler of Suspicious Activity (WHO-EMAIL-015)
+        if (user.role === 'wholesaler' && user.email) {
+            yield email_queue_1.emailQueue.add('suspicious-activity-alert', {
+                to: user.email,
+                templateType: 'wholesaler-suspicious-activity', // Mapped to WHO-EMAIL-015
+                data: {
+                    wholesaler_name: user.name || 'Wholesaler',
+                    activity: 'Unusual account login detected',
+                    time: new Date().toLocaleString(),
+                    location: req.ip || 'Unknown',
+                    security_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/security`
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
         // Format Response
         const responseData = {
             success: true,
@@ -241,6 +317,34 @@ const updatePassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
                 tempPassword: null
             }
         });
+        // Notify Retailer of Security Update (RET-EMAIL-012)
+        if (user.role === 'retailer' && user.email) {
+            yield email_queue_1.emailQueue.add('security-update-alert', {
+                to: user.email,
+                templateType: 'security-update', // Mapped to RET-EMAIL-012
+                data: {
+                    retail_name: user.name || 'Retailer',
+                    change_time: new Date().toLocaleString(),
+                    device: req.headers['user-agent'] || 'Unknown Device',
+                    ip_address: req.ip || 'Unknown'
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
+        // Notify Wholesaler of Security Update (WHO-EMAIL-012)
+        if (user.role === 'wholesaler' && user.email) {
+            yield email_queue_1.emailQueue.add('security-update-alert', {
+                to: user.email,
+                templateType: 'wholesaler-security-update', // Mapped to WHO-EMAIL-012
+                data: {
+                    wholesaler_name: user.name || 'Wholesaler',
+                    change_time: new Date().toLocaleString(),
+                    device: req.headers['user-agent'] || 'Unknown Device',
+                    ip_address: req.ip || 'Unknown'
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
         res.json({ success: true, message: 'Password updated successfully' });
     }
     catch (error) {
@@ -265,6 +369,34 @@ const updatePin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             where: { id: userId },
             data: { pin: hashedPin }
         });
+        // Notify Retailer of Security Update (RET-EMAIL-012)
+        if (user.role === 'retailer' && user.email) {
+            yield email_queue_1.emailQueue.add('security-update-alert', {
+                to: user.email,
+                templateType: 'security-update', // Mapped to RET-EMAIL-012
+                data: {
+                    retail_name: user.name || 'Retailer',
+                    change_time: new Date().toLocaleString(),
+                    device: req.headers['user-agent'] || 'Unknown Device',
+                    ip_address: req.ip || 'Unknown'
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
+        // Notify Wholesaler of Security Update (WHO-EMAIL-012)
+        if (user.role === 'wholesaler' && user.email) {
+            yield email_queue_1.emailQueue.add('security-update-alert', {
+                to: user.email,
+                templateType: 'wholesaler-security-update', // Mapped to WHO-EMAIL-012
+                data: {
+                    wholesaler_name: user.name || 'Wholesaler',
+                    change_time: new Date().toLocaleString(),
+                    device: req.headers['user-agent'] || 'Unknown Device',
+                    ip_address: req.ip || 'Unknown'
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
         res.json({ success: true, message: 'PIN updated successfully' });
     }
     catch (error) {
