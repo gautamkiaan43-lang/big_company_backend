@@ -100,7 +100,7 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
             
             // Validate Minimum Amount (Requirement 2.3.1)
             if (!isPushToken) {
-                if (totalMoneyAmount < adminMinTopup) {
+                if (paymentMethod !== 'gas_rewards' && totalMoneyAmount < adminMinTopup) {
                     return res.status(400).json({
                         success: false,
                         error: `Minimum rechargeable amount is ${adminMinTopup} RWF.`,
