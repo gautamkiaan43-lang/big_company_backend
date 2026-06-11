@@ -871,6 +871,20 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
 export const deleteCategory = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    
+    // Find category name first
+    const categoryObj = await prisma.category.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (categoryObj) {
+      // Set category of all products with this name to 'Uncategorized'
+      await prisma.product.updateMany({
+        where: { category: categoryObj.name },
+        data: { category: 'Uncategorized' }
+      });
+    }
+
     await prisma.category.delete({ where: { id: Number(id) } });
     res.json({ success: true, message: 'Category deleted successfully' });
   } catch (error: any) {

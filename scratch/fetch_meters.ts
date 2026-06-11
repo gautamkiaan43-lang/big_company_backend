@@ -1,14 +1,9 @@
-
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
   const meters = await prisma.gasMeter.findMany({
-    take: 20,
-    select: {
-      meterNumber: true,
-      meterType: true,
-    }
+    take: 50,
   });
   console.log(JSON.stringify(meters, null, 2));
 }

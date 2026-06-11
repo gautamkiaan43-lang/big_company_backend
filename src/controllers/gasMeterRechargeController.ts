@@ -392,6 +392,30 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
         } catch (syncError: any) {
             console.error(`[GasRecharge] Sync error:`, syncError.message);
         }
+
+        // --- SMS DISPATCH FOR TOKEN/RECHARGE ---
+        try {
+            const smsRecipient = phone || (req.user as any)?.phone;
+            if (smsRecipient) {
+                const units = apiResult.units || totalVolume;
+                let smsMessage = '';
+                if (apiResult.token) {
+                    smsMessage = `Dear Customer, your token for Gas Meter ${meterNumber} is ${apiResult.token} (Volume: ${units} M³). Thank you for choosing BIG Ltd.`;
+                } else {
+                    smsMessage = `Dear Customer, your Gas Meter ${meterNumber} was successfully recharged with ${units} M³. Thank you for choosing BIG Ltd.`;
+                }
+                console.log(`[GasRecharge] Dispatching SMS token to ${smsRecipient}...`);
+                const { SMSService } = await import('../services/sms.service');
+                await SMSService.sendSMS(
+                    smsRecipient,
+                    smsMessage,
+                    'GAS_METER_RECHARGE',
+                    { type: 'GAS_RECHARGE', id: String(txRecord.id) }
+                );
+            }
+        } catch (smsErr: any) {
+            console.error('[GasRecharge] Failed to dispatch SMS token:', smsErr.message);
+        }
     }
 
     if (!apiResult.success) {
