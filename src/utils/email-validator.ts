@@ -18,7 +18,7 @@ export const validateBigDomain = (email: string): boolean => {
  * @param role The role to check against
  * @returns boolean
  */
-export const validateBusinessEmailFormat = (email: string, role: 'retailer' | 'wholesaler'): boolean => {
+export const validateBusinessEmailFormat = (email: string, role: 'retailer' | 'wholesaler' | 'consumer'): boolean => {
   if (!validateBigDomain(email)) return false;
   
   const [localPart] = email.split('@');
@@ -26,6 +26,8 @@ export const validateBusinessEmailFormat = (email: string, role: 'retailer' | 'w
     return localPart.endsWith('.retailer');
   } else if (role === 'wholesaler') {
     return localPart.endsWith('.wholesaler');
+  } else if (role === 'consumer') {
+    return localPart.endsWith('.consumer');
   }
   return false;
 };

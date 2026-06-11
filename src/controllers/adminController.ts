@@ -370,7 +370,8 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
           pin: hashedPin,
           role: 'consumer',
           name: userName,
-          isActive: true
+          isActive: true,
+          isFirstLogin: false
         }
       });
 
@@ -424,16 +425,16 @@ export const createRetailer = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Retailer email must follow the format: name.retailer@big.co.rw' });
     }
 
-    const tempPassword = crypto.randomBytes(4).toString('hex');
-    const hashedPassword = await hashPassword(tempPassword);
+    const actualPassword = password || crypto.randomBytes(4).toString('hex');
+    const hashedPassword = await hashPassword(actualPassword);
 
     const user = await prisma.user.create({
       data: {
         email,
         phone,
         password: hashedPassword,
-        tempPassword: tempPassword,
-        isFirstLogin: true,
+        tempPassword: password ? null : actualPassword,
+        isFirstLogin: password ? false : true,
         role: 'retailer',
         name: business_name,
         isActive: true
@@ -460,7 +461,7 @@ export const createRetailer = async (req: AuthRequest, res: Response) => {
         phone: phone,
         email: email, 
         created_date: new Date().toLocaleDateString(),
-        login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/login?email=${email}&tempPass=${tempPassword}`
+        login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/login?email=${email}&tempPass=${actualPassword}`
       },
       relatedEntity: { type: 'USER', id: user.id.toString() }
     });
@@ -499,16 +500,16 @@ export const createWholesaler = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Wholesaler email must follow the format: name.wholesaler@big.co.rw' });
     }
 
-    const tempPassword = crypto.randomBytes(4).toString('hex');
-    const hashedPassword = await hashPassword(tempPassword);
+    const actualPassword = password || crypto.randomBytes(4).toString('hex');
+    const hashedPassword = await hashPassword(actualPassword);
 
     const user = await prisma.user.create({
       data: {
         email,
         phone,
         password: hashedPassword,
-        tempPassword: tempPassword,
-        isFirstLogin: true,
+        tempPassword: password ? null : actualPassword,
+        isFirstLogin: password ? false : true,
         role: 'wholesaler',
         name: company_name,
         isActive: true
@@ -525,7 +526,7 @@ export const createWholesaler = async (req: AuthRequest, res: Response) => {
         phone: phone,
         email: email, 
         created_date: new Date().toLocaleDateString(),
-        login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/login?email=${email}&tempPass=${tempPassword}`
+        login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/login?email=${email}&tempPass=${actualPassword}`
       },
       relatedEntity: { type: 'USER', id: user.id.toString() }
     });
@@ -840,10 +841,26 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, code, description, isActive } = req.body;
+    
+    // Fetch old category to see if name changed
+    const oldCategory = await prisma.category.findUnique({
+      where: { id: Number(id) }
+    });
+
     const category = await prisma.category.update({
       where: { id: Number(id) },
       data: { name, code, description, isActive }
     });
+
+    // Rename category on all products if name changed
+    if (oldCategory && oldCategory.name !== name) {
+      console.log(`Renaming product categories from "${oldCategory.name}" to "${name}"`);
+      await prisma.product.updateMany({
+        where: { category: oldCategory.name },
+        data: { category: name }
+      });
+    }
+
     res.json({ success: true, category, message: 'Category updated successfully' });
   } catch (error: any) {
     console.error('Update Category Error:', error);
@@ -1341,7 +1358,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Aggregate by SKU (fallback to name if sku is missing)
+    // Aggregate by SKU (fallback to name if sku is missing), prioritizing wholesaler products as the representative record
     const groupedMap = new Map();
 
     rawProducts.forEach(product => {
@@ -1351,8 +1368,15 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
         groupedMap.set(key, { ...product });
       } else {
         const existing = groupedMap.get(key);
-        // Aggregate stock
-        existing.stock += product.stock;
+        // If the existing representative is a retailer product, but the current one is a wholesaler product,
+        // swap the representative properties (except stock, which we aggregate)
+        if (existing.retailerId !== null && product.retailerId === null) {
+          const aggregatedStock = existing.stock + product.stock;
+          Object.assign(existing, product);
+          existing.stock = aggregatedStock;
+        } else {
+          existing.stock += product.stock;
+        }
       }
     });
 
@@ -1452,9 +1476,12 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       imageUrl = await uploadImage(image);
     }
 
-    // Update ALL products with this SKU/Name to apply the tariff universally
+    // Update Wholesaler products (where retailerId is null)
     await prisma.product.updateMany({
-      where: whereClause,
+      where: {
+        ...whereClause,
+        retailerId: null
+      },
       data: {
         name,
         description,
@@ -1464,6 +1491,29 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
         costPrice: costPrice !== undefined ? (costPrice ? parseFloat(costPrice) : null) : undefined,
         retailerPrice: retailerPrice !== undefined ? (retailerPrice ? parseFloat(retailerPrice) : null) : undefined,
         // Note: stock is NOT updated here because it's managed individually by wholesalers
+        unit,
+        lowStockThreshold: lowStockThreshold !== undefined ? (lowStockThreshold ? parseInt(lowStockThreshold) : null) : undefined,
+        invoiceNumber,
+        barcode,
+        status,
+        ...(imageUrl ? { image: imageUrl } : {})
+      }
+    });
+
+    // Update Retailer products (where retailerId is not null)
+    await prisma.product.updateMany({
+      where: {
+        ...whereClause,
+        retailerId: { not: null }
+      },
+      data: {
+        name,
+        description,
+        sku,
+        category,
+        // For retailers, Selling Price is the Retailer Price, and Cost Price is the Wholesaler Price
+        price: retailerPrice ? parseFloat(retailerPrice) : undefined,
+        costPrice: price ? parseFloat(price) : undefined,
         unit,
         lowStockThreshold: lowStockThreshold !== undefined ? (lowStockThreshold ? parseInt(lowStockThreshold) : null) : undefined,
         invoiceNumber,

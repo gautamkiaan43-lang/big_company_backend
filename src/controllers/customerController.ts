@@ -270,7 +270,7 @@ export const getWallets = async (req: AuthRequest, res: Response) => {
 export const topupWallet = async (req: AuthRequest, res: Response) => {
     try {
         const userId = req.user!.id;
-        const { amount, payment_method } = req.body;
+        const { amount, payment_method, phone } = req.body;
 
         if (!amount || amount <= 0) {
             return res.status(400).json({ success: false, error: 'Invalid amount' });
@@ -311,7 +311,7 @@ export const topupWallet = async (req: AuthRequest, res: Response) => {
             const palmKash = (await import('../services/palmKash.service')).default;
             const pmResult = await palmKash.initiatePayment({
                 amount: amount,
-                phoneNumber: (consumerProfile as any).user?.phone || '', 
+                phoneNumber: phone || consumerProfile.user?.phone || '', 
                 referenceId: `TOPUP-${Date.now()}`,
                 description: `Wallet topup for ${consumerProfile.fullName || 'Customer'}`
             });

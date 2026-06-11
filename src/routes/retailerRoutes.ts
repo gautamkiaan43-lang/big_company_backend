@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getDashboardStats,
   getInventory,
+  getCategories,
   createProduct,
   updateProduct,
   getOrders,
@@ -59,6 +60,7 @@ router.use(authenticate);
 
 router.get('/dashboard', getDashboardStats);
 router.get('/inventory', getInventory);
+router.get('/inventory/categories', getCategories);
 router.post('/inventory', createProduct);
 router.put('/inventory/:id', updateProduct);
 router.get('/orders', getOrders);

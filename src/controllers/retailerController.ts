@@ -369,7 +369,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
               description: sourceProduct.description,
               sku: sourceProduct.sku,
               category: sourceProduct.category,
-              price: sourceProduct.price * 1.2, // Default markup 20%
+              price: sourceProduct.retailerPrice || (sourceProduct.price * 1.2), // Default markup 20% if no retailerPrice set
               costPrice: item.price, // Cost is what they paid in the order
               stock: item.quantity,
               unit: sourceProduct.unit,
@@ -1021,7 +1021,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
         if (totalProfit > 0) {
           const rewardAmountRWF = totalProfit * 0.12; // 12% of profit
-          const rewardUnits = rewardAmountRWF / 300;
+          const rewardUnits = Number((rewardAmountRWF / 1000).toFixed(4));
 
           await prisma.gasReward.create({
             data: {
@@ -3585,6 +3585,21 @@ export const getPaymentAuditLogs = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     console.error('Get payment audit logs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get categories (from global Category table for Add/Edit forms)
+export const getCategories = async (req: AuthRequest, res: Response) => {
+  try {
+    const categories = await prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' }
+    });
+
+    res.json({ categories: categories.map(c => c.name) });
+  } catch (error: any) {
+    console.error('❌ Error fetching categories:', error);
     res.status(500).json({ error: error.message });
   }
 };

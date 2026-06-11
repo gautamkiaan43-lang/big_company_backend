@@ -1078,7 +1078,7 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
               sku: item.product.sku,
               barcode: item.product.barcode,
               category: item.product.category,
-              price: item.product.price * 1.2, // Default 20% markup for retailer if new
+              price: item.product.retailerPrice || (item.product.price * 1.2), // Use configured retailer price, default to 20% markup if not set
               costPrice: item.product.price,    // Wholesaler's price is retailer's cost
               stock: item.quantity,
               retailerId: updatedOrder.retailerId,

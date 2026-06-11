@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma, { withRetry } from '../utils/prisma';
 import { generateToken, hashPassword, comparePassword } from '../utils/auth';
 import { emailQueue } from '../queues/email.queue';
+import { validateBusinessEmailFormat } from '../utils/email-validator';
 
 
 export const register = async (req: Request, res: Response) => {
@@ -20,6 +21,14 @@ export const register = async (req: Request, res: Response) => {
       return res.status(403).json({ 
         error: 'Self-registration is not allowed for business accounts. Please contact a BIG Ltd administrator for onboarding.' 
       });
+    }
+
+    if (targetuser_role === 'consumer' && email) {
+      if (!validateBusinessEmailFormat(email, 'consumer')) {
+        return res.status(400).json({ 
+          error: 'Consumer email must follow the format: name.consumer@big.co.rw' 
+        });
+      }
     }
 
     // Check existing user
@@ -46,6 +55,7 @@ export const register = async (req: Request, res: Response) => {
         password: hashedPassword,
         pin: hashedPin, // Store pin (hashed)
         role: targetuser_role,
+        isFirstLogin: false, // Explicitly set to false for self-registered consumers
         name: first_name ? `${first_name} ${last_name || ''}`.trim() : (business_name || company_name || shop_name),
         updatedAt: new Date()
       }
@@ -292,13 +302,15 @@ export const updatePassword = async (req: any, res: Response) => {
     const userId = req.user.id;
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.password) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const isValid = await comparePassword(old_password, user.password);
-    if (!isValid) {
-      return res.status(400).json({ error: 'Incorrect current password' });
+    if (user.password) {
+      const isValid = await comparePassword(old_password, user.password);
+      if (!isValid) {
+        return res.status(400).json({ error: 'Incorrect current password' });
+      }
     }
 
     const hashedPassword = await hashPassword(new_password);
@@ -401,5 +413,88 @@ export const updatePin = async (req: any, res: Response) => {
     res.json({ success: true, message: 'PIN updated successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    let targetuser_role = req.body.role;
+    if (!targetuser_role) {
+      if (req.baseUrl.includes('store')) targetuser_role = 'consumer';
+      else if (req.baseUrl.includes('retailer')) targetuser_role = 'retailer';
+      else if (req.baseUrl.includes('wholesaler')) targetuser_role = 'wholesaler';
+      else if (req.baseUrl.includes('employee')) targetuser_role = 'employee';
+      else if (req.baseUrl.includes('admin')) targetuser_role = 'admin';
+    }
+
+    // Find user matching role and email
+    const user = await prisma.user.findFirst({
+      where: {
+        email: email,
+        role: targetuser_role
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User with this email and role not found' });
+    }
+
+    // Generate random 8-character password
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let tempPass = 'BIG-';
+    for (let i = 0; i < 8; i++) {
+      tempPass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const hashedPassword = await hashPassword(tempPass);
+
+    // Update user password and set isFirstLogin = true
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        isFirstLogin: true,
+        tempPassword: tempPass
+      }
+    });
+
+    // Send email using EmailService
+    const { EmailService } = await import('../services/email.service');
+    const subject = '🔐 Temporary Password Reset - Big Innovation Group';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #0f766e;">Big Innovation Group Ltd</h2>
+          <p style="color: #64748b;">Password Recovery Service</p>
+        </div>
+        <p>Hello <strong>${user.name || 'User'}</strong>,</p>
+        <p>We received a request to reset your password. A temporary password has been generated for your account:</p>
+        <div style="background-color: #f1f5f9; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0;">
+          <code style="font-size: 20px; font-weight: bold; color: #0f766e; letter-spacing: 1px;">${tempPass}</code>
+        </div>
+        <p style="color: #dc2626; font-size: 14px;"><strong>Important:</strong> You will be required to change this password immediately upon logging in.</p>
+        <p>If you did not request this, please contact support immediately.</p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; text-align: center;">© ${new Date().getFullYear()} Big Innovation Group Ltd. All rights reserved.</p>
+      </div>
+    `;
+
+    await EmailService.sendEmail(
+      email,
+      subject,
+      html,
+      'password-reset',
+      { type: 'USER', id: user.id.toString() }
+    );
+
+    return res.json({ success: true, message: 'Temporary password sent to email' });
+  } catch (error: any) {
+    console.error('[forgotPassword] Error:', error);
+    return res.status(500).json({ error: error.message });
   }
 };
