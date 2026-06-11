@@ -300,7 +300,7 @@ const topupWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     var _a;
     try {
         const userId = req.user.id;
-        const { amount, payment_method } = req.body;
+        const { amount, payment_method, phone } = req.body;
         if (!amount || amount <= 0) {
             return res.status(400).json({ success: false, error: 'Invalid amount' });
         }
@@ -334,7 +334,7 @@ const topupWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             const palmKash = (yield Promise.resolve().then(() => __importStar(require('../services/palmKash.service')))).default;
             const pmResult = yield palmKash.initiatePayment({
                 amount: amount,
-                phoneNumber: ((_a = consumerProfile.user) === null || _a === void 0 ? void 0 : _a.phone) || '',
+                phoneNumber: phone || ((_a = consumerProfile.user) === null || _a === void 0 ? void 0 : _a.phone) || '',
                 referenceId: `TOPUP-${Date.now()}`,
                 description: `Wallet topup for ${consumerProfile.fullName || 'Customer'}`
             });

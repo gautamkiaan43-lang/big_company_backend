@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const trainingController_1 = require("../controllers/trainingController");
+const authMiddleware_1 = require("../middleware/authMiddleware");
+const router = (0, express_1.Router)();
+router.use(authMiddleware_1.authenticate);
+router.get('/training/courses', trainingController_1.getCourses);
+router.get('/training/courses/:id', trainingController_1.getCourseById);
+router.post('/training/courses/:id/enroll', trainingController_1.enrollCourse);
+router.put('/training/lessons/:id/complete', trainingController_1.updateLessonProgress);
+router.get('/training/certificates', trainingController_1.getCertificates);
+exports.default = router;

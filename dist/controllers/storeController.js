@@ -166,9 +166,9 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 where: { consumerId: consumerProfile.id }
             });
             log(`Found ${gasRewards.length} reward records`);
-            // Calculate total reward gas balance in RWF (units * 300 RWF per unit)
+            // Calculate total reward gas balance in RWF (units * 1000 RWF per unit)
             const totalGasUnits = gasRewards.reduce((sum, r) => sum + r.units, 0);
-            const totalGasRwf = totalGasUnits * 300; // 300 RWF per M³
+            const totalGasRwf = totalGasUnits * 1000; // 1000 RWF per M³
             if (rewardGasAmount > totalGasRwf) {
                 return res.status(400).json({
                     success: false,
@@ -187,7 +187,7 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             // 1. Deduct Reward Gas if applied
             if (rewardGasApplied > 0) {
                 log(`Deducting ${rewardGasApplied} reward gas...`);
-                const gasUnitsToDeduct = rewardGasApplied / 300; // Convert RWF to gas units
+                const gasUnitsToDeduct = rewardGasApplied / 1000; // Convert RWF to gas units
                 // Create negative gas reward entry (deduction)
                 yield tx.gasReward.create({
                     data: {
@@ -326,12 +326,27 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 include: { saleItems: true }
             });
             // 4. CREDIT GAS REWARDS
-            // Reward Calculation: reward = totalAmount * 0.12
             if (shouldCalculateReward) {
                 console.log('Calculating gas rewards...');
-                const rewardAmountRWF = total * 0.12;
-                // Round to 4 decimal places for precision
-                const rewardUnits = Number((rewardAmountRWF / 300).toFixed(4));
+                // Calculate Profit from items using product costPrice (wholesaler price)
+                const productIds = items.map((item) => Number(item.productId));
+                const products = yield tx.product.findMany({
+                    where: { id: { in: productIds } }
+                });
+                const productMap = new Map(products.map(p => [p.id, p]));
+                let totalProfit = 0;
+                for (const item of items) {
+                    const product = productMap.get(Number(item.productId));
+                    if (product && product.costPrice) {
+                        const profitPerItem = Number(item.price) - Number(product.costPrice);
+                        if (profitPerItem > 0) {
+                            totalProfit += profitPerItem * Number(item.quantity);
+                        }
+                    }
+                }
+                const rewardAmountRWF = totalProfit * 0.12;
+                // Convert to gas units where 1 m³ = 1000 RWF, rounded to 4 decimal places
+                const rewardUnits = Number((rewardAmountRWF / 1000).toFixed(4));
                 if (rewardUnits > 0) {
                     console.log('Awarding gas rewards:', rewardUnits);
                     yield tx.gasReward.create({
@@ -340,7 +355,7 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                             saleId: sale.id,
                             meterId: targetRewardId || null, // Capture which ID earned this
                             units: rewardUnits,
-                            profitAmount: 0,
+                            profitAmount: totalProfit,
                             source: 'purchase_reward',
                             reference: `Reward for Order #${sale.id}`
                         }
@@ -496,8 +511,11 @@ exports.getRetailers = getRetailers;
 // Get categories
 const getCategories = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const products = yield prisma_1.default.product.findMany({ select: { category: true }, distinct: ['category'] });
-        const categories = products.map(p => ({ name: p.category, id: p.category }));
+        const activeCategories = yield prisma_1.default.category.findMany({
+            where: { isActive: true },
+            orderBy: { name: 'asc' }
+        });
+        const categories = activeCategories.map(c => ({ name: c.name, id: c.name }));
         res.json({ categories });
     }
     catch (error) {
@@ -1369,7 +1387,7 @@ const getRewardGasBalance = (req, res) => __awaiter(void 0, void 0, void 0, func
         });
         // Calculate total balance
         const totalUnits = gasRewards.reduce((sum, r) => sum + r.units, 0);
-        const totalRwf = totalUnits * 300; // 300 RWF per M³
+        const totalRwf = totalUnits * 1000; // 1000 RWF per M³
         res.json({
             success: true,
             balance: {
@@ -1380,7 +1398,7 @@ const getRewardGasBalance = (req, res) => __awaiter(void 0, void 0, void 0, func
             recentTransactions: gasRewards.slice(0, 10).map(r => ({
                 id: r.id,
                 units: r.units,
-                rwf: r.units * 300,
+                rwf: r.units * 1000,
                 source: r.source,
                 reference: r.reference,
                 createdAt: r.createdAt

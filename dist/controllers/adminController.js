@@ -361,7 +361,8 @@ const createCustomer = (req, res) => __awaiter(void 0, void 0, void 0, function*
                     pin: hashedPin,
                     role: 'consumer',
                     name: userName,
-                    isActive: true
+                    isActive: true,
+                    isFirstLogin: false
                 }
             });
             const consumerProfile = yield tx.consumerProfile.create({
@@ -408,15 +409,15 @@ const createRetailer = (req, res) => __awaiter(void 0, void 0, void 0, function*
         if (!(0, email_validator_1.validateBusinessEmailFormat)(email, 'retailer')) {
             return res.status(400).json({ error: 'Retailer email must follow the format: name.retailer@big.co.rw' });
         }
-        const tempPassword = crypto_1.default.randomBytes(4).toString('hex');
-        const hashedPassword = yield (0, auth_1.hashPassword)(tempPassword);
+        const actualPassword = password || crypto_1.default.randomBytes(4).toString('hex');
+        const hashedPassword = yield (0, auth_1.hashPassword)(actualPassword);
         const user = yield prisma_1.default.user.create({
             data: {
                 email,
                 phone,
                 password: hashedPassword,
-                tempPassword: tempPassword,
-                isFirstLogin: true,
+                tempPassword: password ? null : actualPassword,
+                isFirstLogin: password ? false : true,
                 role: 'retailer',
                 name: business_name,
                 isActive: true
@@ -441,7 +442,7 @@ const createRetailer = (req, res) => __awaiter(void 0, void 0, void 0, function*
                 phone: phone,
                 email: email,
                 created_date: new Date().toLocaleDateString(),
-                login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/login?email=${email}&tempPass=${tempPassword}`
+                login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/login?email=${email}&tempPass=${actualPassword}`
             },
             relatedEntity: { type: 'USER', id: user.id.toString() }
         });
@@ -478,15 +479,15 @@ const createWholesaler = (req, res) => __awaiter(void 0, void 0, void 0, functio
         if (!(0, email_validator_1.validateBusinessEmailFormat)(email, 'wholesaler')) {
             return res.status(400).json({ error: 'Wholesaler email must follow the format: name.wholesaler@big.co.rw' });
         }
-        const tempPassword = crypto_1.default.randomBytes(4).toString('hex');
-        const hashedPassword = yield (0, auth_1.hashPassword)(tempPassword);
+        const actualPassword = password || crypto_1.default.randomBytes(4).toString('hex');
+        const hashedPassword = yield (0, auth_1.hashPassword)(actualPassword);
         const user = yield prisma_1.default.user.create({
             data: {
                 email,
                 phone,
                 password: hashedPassword,
-                tempPassword: tempPassword,
-                isFirstLogin: true,
+                tempPassword: password ? null : actualPassword,
+                isFirstLogin: password ? false : true,
                 role: 'wholesaler',
                 name: company_name,
                 isActive: true
@@ -502,7 +503,7 @@ const createWholesaler = (req, res) => __awaiter(void 0, void 0, void 0, functio
                 phone: phone,
                 email: email,
                 created_date: new Date().toLocaleDateString(),
-                login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/login?email=${email}&tempPass=${tempPassword}`
+                login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/login?email=${email}&tempPass=${actualPassword}`
             },
             relatedEntity: { type: 'USER', id: user.id.toString() }
         });
@@ -800,10 +801,22 @@ const updateCategory = (req, res) => __awaiter(void 0, void 0, void 0, function*
     try {
         const { id } = req.params;
         const { name, code, description, isActive } = req.body;
+        // Fetch old category to see if name changed
+        const oldCategory = yield prisma_1.default.category.findUnique({
+            where: { id: Number(id) }
+        });
         const category = yield prisma_1.default.category.update({
             where: { id: Number(id) },
             data: { name, code, description, isActive }
         });
+        // Rename category on all products if name changed
+        if (oldCategory && oldCategory.name !== name) {
+            console.log(`Renaming product categories from "${oldCategory.name}" to "${name}"`);
+            yield prisma_1.default.product.updateMany({
+                where: { category: oldCategory.name },
+                data: { category: name }
+            });
+        }
         res.json({ success: true, category, message: 'Category updated successfully' });
     }
     catch (error) {
@@ -1275,7 +1288,7 @@ const getProducts = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             },
             orderBy: { createdAt: 'desc' }
         });
-        // Aggregate by SKU (fallback to name if sku is missing)
+        // Aggregate by SKU (fallback to name if sku is missing), prioritizing wholesaler products as the representative record
         const groupedMap = new Map();
         rawProducts.forEach(product => {
             const key = product.sku || product.name;
@@ -1285,8 +1298,16 @@ const getProducts = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             }
             else {
                 const existing = groupedMap.get(key);
-                // Aggregate stock
-                existing.stock += product.stock;
+                // If the existing representative is a retailer product, but the current one is a wholesaler product,
+                // swap the representative properties (except stock, which we aggregate)
+                if (existing.retailerId !== null && product.retailerId === null) {
+                    const aggregatedStock = existing.stock + product.stock;
+                    Object.assign(existing, product);
+                    existing.stock = aggregatedStock;
+                }
+                else {
+                    existing.stock += product.stock;
+                }
             }
         });
         const products = Array.from(groupedMap.values());
@@ -1349,15 +1370,27 @@ const updateProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         if (image && image.startsWith('data:image')) {
             imageUrl = yield (0, cloudinary_1.uploadImage)(image);
         }
-        // Update ALL products with this SKU/Name to apply the tariff universally
+        // Update Wholesaler products (where retailerId is null)
         yield prisma_1.default.product.updateMany({
-            where: whereClause,
+            where: Object.assign(Object.assign({}, whereClause), { retailerId: null }),
             data: Object.assign({ name,
                 description,
                 sku,
                 category, price: price ? parseFloat(price) : undefined, costPrice: costPrice !== undefined ? (costPrice ? parseFloat(costPrice) : null) : undefined, retailerPrice: retailerPrice !== undefined ? (retailerPrice ? parseFloat(retailerPrice) : null) : undefined, 
                 // Note: stock is NOT updated here because it's managed individually by wholesalers
                 unit, lowStockThreshold: lowStockThreshold !== undefined ? (lowStockThreshold ? parseInt(lowStockThreshold) : null) : undefined, invoiceNumber,
+                barcode,
+                status }, (imageUrl ? { image: imageUrl } : {}))
+        });
+        // Update Retailer products (where retailerId is not null)
+        yield prisma_1.default.product.updateMany({
+            where: Object.assign(Object.assign({}, whereClause), { retailerId: { not: null } }),
+            data: Object.assign({ name,
+                description,
+                sku,
+                category, 
+                // For retailers, Selling Price is the Retailer Price, and Cost Price is the Wholesaler Price
+                price: retailerPrice ? parseFloat(retailerPrice) : undefined, costPrice: price ? parseFloat(price) : undefined, unit, lowStockThreshold: lowStockThreshold !== undefined ? (lowStockThreshold ? parseInt(lowStockThreshold) : null) : undefined, invoiceNumber,
                 barcode,
                 status }, (imageUrl ? { image: imageUrl } : {}))
         });

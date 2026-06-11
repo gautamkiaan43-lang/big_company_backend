@@ -45,7 +45,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPaymentAuditLogs = exports.getGasRewardsGiven = exports.confirmPurchaseOrderDelivery = exports.getPurchaseOrder = exports.getPurchaseOrders = exports.getSettlementInvoice = exports.getSettlementInvoices = exports.unlinkCustomer = exports.getLinkedCustomers = exports.rejectCustomerLinkRequest = exports.approveCustomerLinkRequest = exports.getCustomerLinkRequests = exports.linkCardForCustomer = exports.cancelLinkRequest = exports.getMyLinkRequests = exports.sendLinkRequest = exports.getAvailableWholesalers = exports.getAnalytics = exports.topUpWallet = exports.updateProfile = exports.getProfile = exports.payCredit = exports.makeRepayment = exports.requestCredit = exports.getCreditOrder = exports.getCreditOrders = exports.getCreditInfo = exports.getWalletTransactions = exports.createOrder = exports.getWholesalerProducts = exports.getDailySales = exports.fulfillSale = exports.cancelSale = exports.updateSaleStatus = exports.createSale = exports.scanBarcode = exports.getPOSProducts = exports.getWallet = exports.createBranch = exports.getBranches = exports.getOrder = exports.getOrders = exports.updateProduct = exports.createProduct = exports.getInventory = exports.getDashboardStats = void 0;
+exports.getCategories = exports.getPaymentAuditLogs = exports.getGasRewardsGiven = exports.confirmPurchaseOrderDelivery = exports.getPurchaseOrder = exports.getPurchaseOrders = exports.getSettlementInvoice = exports.getSettlementInvoices = exports.unlinkCustomer = exports.getLinkedCustomers = exports.rejectCustomerLinkRequest = exports.approveCustomerLinkRequest = exports.getCustomerLinkRequests = exports.linkCardForCustomer = exports.cancelLinkRequest = exports.getMyLinkRequests = exports.sendLinkRequest = exports.getAvailableWholesalers = exports.getAnalytics = exports.topUpWallet = exports.updateProfile = exports.getProfile = exports.payCredit = exports.makeRepayment = exports.requestCredit = exports.getCreditOrder = exports.getCreditOrders = exports.getCreditInfo = exports.getWalletTransactions = exports.createOrder = exports.getWholesalerProducts = exports.getDailySales = exports.fulfillSale = exports.cancelSale = exports.updateSaleStatus = exports.createSale = exports.scanBarcode = exports.getPOSProducts = exports.getWallet = exports.createBranch = exports.getBranches = exports.getOrder = exports.getOrders = exports.updateProduct = exports.createProduct = exports.getInventory = exports.getDashboardStats = void 0;
 const prisma_1 = __importDefault(require("../utils/prisma"));
 const cloudinary_1 = require("../utils/cloudinary");
 const email_queue_1 = require("../queues/email.queue");
@@ -371,7 +371,7 @@ const createProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                             description: sourceProduct.description,
                             sku: sourceProduct.sku,
                             category: sourceProduct.category,
-                            price: sourceProduct.price * 1.2, // Default markup 20%
+                            price: sourceProduct.retailerPrice || (sourceProduct.price * 1.2), // Default markup 20% if no retailerPrice set
                             costPrice: item.price, // Cost is what they paid in the order
                             stock: item.quantity,
                             unit: sourceProduct.unit,
@@ -954,7 +954,7 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 }
                 if (totalProfit > 0) {
                     const rewardAmountRWF = totalProfit * 0.12; // 12% of profit
-                    const rewardUnits = rewardAmountRWF / 300;
+                    const rewardUnits = Number((rewardAmountRWF / 1000).toFixed(4));
                     yield prisma.gasReward.create({
                         data: {
                             consumerId: consumerId,
@@ -3307,3 +3307,18 @@ const getPaymentAuditLogs = (req, res) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.getPaymentAuditLogs = getPaymentAuditLogs;
+// Get categories (from global Category table for Add/Edit forms)
+const getCategories = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const categories = yield prisma_1.default.category.findMany({
+            where: { isActive: true },
+            orderBy: { name: 'asc' }
+        });
+        res.json({ categories: categories.map(c => c.name) });
+    }
+    catch (error) {
+        console.error('❌ Error fetching categories:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.getCategories = getCategories;
