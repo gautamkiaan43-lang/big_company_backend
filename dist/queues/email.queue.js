@@ -97,6 +97,7 @@ exports.emailWorker = new bullmq_1.Worker('email-queue', (job) => __awaiter(void
             });
             if (mapping) {
                 resolvedTemplateName = mapping.templateName;
+                console.log(`[EmailWorker] Resolved '${templateType}' -> '${resolvedTemplateName}'`);
             }
         }
         catch (err) { }
@@ -105,18 +106,30 @@ exports.emailWorker = new bullmq_1.Worker('email-queue', (job) => __awaiter(void
         // This ensures we use the DB-stored templates if they exist (Requirement 4.2.1)
         if (data) {
             const { TemplateService } = yield Promise.resolve().then(() => __importStar(require('../services/template.service')));
-            // Use templateType as the template name, or fallback to generic
-            const templateName = templateType || 'GENERIC';
-            const template = yield TemplateService.getTemplate(templateName, data);
+            // FIX: Use the RESOLVED template name (e.g. CUS-SMS-011) not the raw slug
+            // so TemplateService can find the correct DB template
+            const template = yield TemplateService.getTemplate(resolvedTemplateName, data);
             finalSubject = template.subject;
             finalHtml = template.html;
         }
         // ROUTING LOGIC: If resolved template name contains SMS, send via SMSService
         if (isSMS) {
             const { SMSService } = yield Promise.resolve().then(() => __importStar(require('../services/sms.service')));
-            // For SMS, we use the raw content from finalHtml (which is the template.html)
-            // Strip HTML tags if any (though SMS templates should be plain text)
-            const plainText = finalHtml.replace(/<[^>]*>?/gm, '');
+            // Strip HTML tags to get plain text for SMS
+            let plainText = (finalHtml || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
+            // Safety fallback: if template resolution failed and returned raw HTML/CSS,
+            // use a generic plain-text message based on the event type
+            if (!plainText || plainText.length > 500 || plainText.includes('font-family') || plainText.includes('DOCTYPE')) {
+                console.warn(`[EmailWorker] Template '${resolvedTemplateName}' returned invalid SMS content. Using fallback message.`);
+                const d = job.data.data || {};
+                if (resolvedTemplateName === 'CUS-SMS-011' || templateType === 'customer-failed-login') {
+                    plainText = `Hello ${d.customer_name || 'Customer'}, a failed login attempt was detected on your BIG Ltd account at ${d.attempt_time || new Date().toLocaleString()}. If this was not you, please contact support immediately.`;
+                }
+                else {
+                    plainText = `BIG Ltd: A system notification was triggered for your account at ${new Date().toLocaleString()}. Please contact support if you need assistance.`;
+                }
+            }
+            console.log(`[EmailWorker] Sending SMS to ${to}: ${plainText.substring(0, 80)}...`);
             const result = yield SMSService.sendSMS(to, plainText, templateType, relatedEntity, logId // Pass existing logId for retries
             );
             // If this was the first attempt, save the logId to job data for future retries
