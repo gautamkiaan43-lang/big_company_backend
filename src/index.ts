@@ -142,6 +142,10 @@ app.listen(PORT, async () => {
   const { initScheduler } = await import('./queues/scheduler');
   await initScheduler();
 
+  // Initialize Queue Workers
+  const { emailWorker } = await import('./queues/email.queue');
+  console.log('✉️ Email/SMS Queue Worker initialized.');
+
   // Initialize Health Checker
   const { initHealthCheck } = await import('./services/healthCheck.service');
   initHealthCheck();
