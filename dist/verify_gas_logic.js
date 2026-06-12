@@ -58,7 +58,7 @@ function verifyGasRewardsSystem() {
             const purchaseAmount = 1800; // 1,800 RWF
             const profitAmount = 900; // 900 RWF
             const expectedRewardRWF = profitAmount * 0.12; // 108 RWF
-            const expectedRewardUnits = expectedRewardRWF / 1000; // 0.108 M³
+            const expectedRewardUnits = expectedRewardRWF / 6500; // 0.0166 M³
             logResult('2. Gas Reward Calculation', 'PASS', `For ${purchaseAmount} RWF purchase (Profit: ${profitAmount} RWF): ${expectedRewardRWF} RWF = ${expectedRewardUnits.toFixed(4)} M³`, {
                 purchaseAmount,
                 profitAmount,

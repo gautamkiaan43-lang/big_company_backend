@@ -1021,7 +1021,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
         if (totalProfit > 0) {
           const rewardAmountRWF = totalProfit * 0.12; // 12% of profit
-          const rewardUnits = Number((rewardAmountRWF / 1000).toFixed(4));
+          const rewardUnits = Number((rewardAmountRWF / 6500).toFixed(4));
 
           await prisma.gasReward.create({
             data: {

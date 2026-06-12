@@ -954,7 +954,7 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 }
                 if (totalProfit > 0) {
                     const rewardAmountRWF = totalProfit * 0.12; // 12% of profit
-                    const rewardUnits = Number((rewardAmountRWF / 1000).toFixed(4));
+                    const rewardUnits = Number((rewardAmountRWF / 6500).toFixed(4));
                     yield prisma.gasReward.create({
                         data: {
                             consumerId: consumerId,

@@ -398,20 +398,34 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
             const smsRecipient = phone || (req.user as any)?.phone;
             if (smsRecipient) {
                 const units = apiResult.units || totalVolume;
-                let smsMessage = '';
-                if (apiResult.token) {
-                    smsMessage = `Dear Customer, your token for Gas Meter ${meterNumber} is ${apiResult.token} (Volume: ${units} M³). Thank you for choosing BIG Ltd.`;
-                } else {
-                    smsMessage = `Dear Customer, your Gas Meter ${meterNumber} was successfully recharged with ${units} M³. Thank you for choosing BIG Ltd.`;
+                
+                // Fetch the consumer's name to personalize the greeting
+                let customerName = 'Valued Customer';
+                if (consumerProfileId) {
+                    const consumer = await prisma.consumerProfile.findUnique({
+                        where: { id: consumerProfileId },
+                        include: { user: true }
+                    });
+                    if (consumer) {
+                        customerName = consumer.fullName || consumer.user.name || 'Valued Customer';
+                    }
                 }
-                console.log(`[GasRecharge] Dispatching SMS token to ${smsRecipient}...`);
-                const { SMSService } = await import('../services/sms.service');
-                await SMSService.sendSMS(
-                    smsRecipient,
-                    smsMessage,
-                    'GAS_METER_RECHARGE',
-                    { type: 'GAS_RECHARGE', id: String(txRecord.id) }
-                );
+
+                console.log(`[GasRecharge] Dispatching dynamic SMS token to ${smsRecipient} via queue...`);
+                const { emailQueue } = await import('../queues/email.queue');
+                await emailQueue.add('gas-recharge-success', {
+                    to: smsRecipient,
+                    templateType: 'gas-recharge-success', // Mapped to CUS-SMS-004
+                    data: {
+                        customer_name: customerName,
+                        meter_name: 'Gas Meter',
+                        meter_id: meterNumber,
+                        amount: totalMoneyAmount.toLocaleString(),
+                        token: apiResult.token || 'N/A',
+                        transaction_id: String(txRecord.id)
+                    },
+                    relatedEntity: { type: 'GAS_RECHARGE', id: String(txRecord.id) }
+                });
             }
         } catch (smsErr: any) {
             console.error('[GasRecharge] Failed to dispatch SMS token:', smsErr.message);

@@ -66,7 +66,7 @@ const zhongyiMeter_service_1 = __importDefault(require("../services/zhongyiMeter
  * paymentMethod: "wallet" | "mobile_money" | "nfc_card"
  */
 const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const { meterType, amount, paymentMethod, phone, cardId, provider, // 'stronpower' (default) | 'zhongyi'
     isVendByUnit, // New: true = unit-based, false = money-based
     token, // New: for remote Piping token pushes
@@ -394,6 +394,26 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
         }
         catch (syncError) {
             console.error(`[GasRecharge] Sync error:`, syncError.message);
+        }
+        // --- SMS DISPATCH FOR TOKEN/RECHARGE ---
+        try {
+            const smsRecipient = phone || ((_d = req.user) === null || _d === void 0 ? void 0 : _d.phone);
+            if (smsRecipient) {
+                const units = apiResult.units || totalVolume;
+                let smsMessage = '';
+                if (apiResult.token) {
+                    smsMessage = `Dear Customer, your token for Gas Meter ${meterNumber} is ${apiResult.token} (Volume: ${units} M³). Thank you for choosing BIG Ltd.`;
+                }
+                else {
+                    smsMessage = `Dear Customer, your Gas Meter ${meterNumber} was successfully recharged with ${units} M³. Thank you for choosing BIG Ltd.`;
+                }
+                console.log(`[GasRecharge] Dispatching SMS token to ${smsRecipient}...`);
+                const { SMSService } = yield Promise.resolve().then(() => __importStar(require('../services/sms.service')));
+                yield SMSService.sendSMS(smsRecipient, smsMessage, 'GAS_METER_RECHARGE', { type: 'GAS_RECHARGE', id: String(txRecord.id) });
+            }
+        }
+        catch (smsErr) {
+            console.error('[GasRecharge] Failed to dispatch SMS token:', smsErr.message);
         }
     }
     if (!apiResult.success) {

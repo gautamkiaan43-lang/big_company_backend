@@ -828,6 +828,17 @@ exports.updateCategory = updateCategory;
 const deleteCategory = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
+        // Find category name first
+        const categoryObj = yield prisma_1.default.category.findUnique({
+            where: { id: Number(id) }
+        });
+        if (categoryObj) {
+            // Set category of all products with this name to 'Uncategorized'
+            yield prisma_1.default.product.updateMany({
+                where: { category: categoryObj.name },
+                data: { category: 'Uncategorized' }
+            });
+        }
         yield prisma_1.default.category.delete({ where: { id: Number(id) } });
         res.json({ success: true, message: 'Category deleted successfully' });
     }

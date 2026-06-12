@@ -166,9 +166,9 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 where: { consumerId: consumerProfile.id }
             });
             log(`Found ${gasRewards.length} reward records`);
-            // Calculate total reward gas balance in RWF (units * 1000 RWF per unit)
+            // Calculate total reward gas balance in RWF (units * 6500 RWF per unit)
             const totalGasUnits = gasRewards.reduce((sum, r) => sum + r.units, 0);
-            const totalGasRwf = totalGasUnits * 1000; // 1000 RWF per M³
+            const totalGasRwf = totalGasUnits * 6500; // 6500 RWF per M³
             if (rewardGasAmount > totalGasRwf) {
                 return res.status(400).json({
                     success: false,
@@ -187,7 +187,7 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             // 1. Deduct Reward Gas if applied
             if (rewardGasApplied > 0) {
                 log(`Deducting ${rewardGasApplied} reward gas...`);
-                const gasUnitsToDeduct = rewardGasApplied / 1000; // Convert RWF to gas units
+                const gasUnitsToDeduct = rewardGasApplied / 6500; // Convert RWF to gas units
                 // Create negative gas reward entry (deduction)
                 yield tx.gasReward.create({
                     data: {
@@ -345,8 +345,8 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                     }
                 }
                 const rewardAmountRWF = totalProfit * 0.12;
-                // Convert to gas units where 1 m³ = 1000 RWF, rounded to 4 decimal places
-                const rewardUnits = Number((rewardAmountRWF / 1000).toFixed(4));
+                // Convert to gas units where 1 m³ = 6500 RWF, rounded to 4 decimal places
+                const rewardUnits = Number((rewardAmountRWF / 6500).toFixed(4));
                 if (rewardUnits > 0) {
                     console.log('Awarding gas rewards:', rewardUnits);
                     yield tx.gasReward.create({
@@ -1387,7 +1387,7 @@ const getRewardGasBalance = (req, res) => __awaiter(void 0, void 0, void 0, func
         });
         // Calculate total balance
         const totalUnits = gasRewards.reduce((sum, r) => sum + r.units, 0);
-        const totalRwf = totalUnits * 1000; // 1000 RWF per M³
+        const totalRwf = totalUnits * 6500; // 6500 RWF per M³
         res.json({
             success: true,
             balance: {
@@ -1398,7 +1398,7 @@ const getRewardGasBalance = (req, res) => __awaiter(void 0, void 0, void 0, func
             recentTransactions: gasRewards.slice(0, 10).map(r => ({
                 id: r.id,
                 units: r.units,
-                rwf: r.units * 1000,
+                rwf: r.units * 6500,
                 source: r.source,
                 reference: r.reference,
                 createdAt: r.createdAt

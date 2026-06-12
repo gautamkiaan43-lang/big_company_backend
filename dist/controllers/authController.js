@@ -46,7 +46,6 @@ exports.forgotPassword = exports.updatePin = exports.updatePassword = exports.lo
 const prisma_1 = __importStar(require("../utils/prisma"));
 const auth_1 = require("../utils/auth");
 const email_queue_1 = require("../queues/email.queue");
-const email_validator_1 = require("../utils/email-validator");
 const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, password, phone, pin, role, first_name, last_name, business_name, shop_name, company_name } = req.body;
@@ -65,10 +64,18 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 error: 'Self-registration is not allowed for business accounts. Please contact a BIG Ltd administrator for onboarding.'
             });
         }
-        if (targetuser_role === 'consumer' && email) {
-            if (!(0, email_validator_1.validateBusinessEmailFormat)(email, 'consumer')) {
+        if (phone) {
+            if (!/^\+2507\d{8}$/.test(phone)) {
                 return res.status(400).json({
-                    error: 'Consumer email must follow the format: name.consumer@big.co.rw'
+                    error: 'Phone number must start with +250 and follow the format +2507XXXXXXXX'
+                });
+            }
+        }
+        if (targetuser_role === 'consumer' && email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                return res.status(400).json({
+                    error: 'Invalid email format'
                 });
             }
         }
@@ -234,6 +241,18 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                         attempt_time: new Date().toLocaleString(),
                         device: req.headers['user-agent'] || 'Unknown Device',
                         ip: req.ip || 'Unknown'
+                    },
+                    relatedEntity: { type: 'USER', id: user.id.toString() }
+                });
+            }
+            // Notify Consumer of Failed Login (CUS-SMS-011)
+            if (user.role === 'consumer' && user.phone) {
+                yield email_queue_1.emailQueue.add('failed-login-alert', {
+                    to: user.phone,
+                    templateType: 'customer-failed-login', // Mapped to CUS-SMS-011
+                    data: {
+                        customer_name: user.name || 'Customer',
+                        attempt_time: new Date().toLocaleString()
                     },
                     relatedEntity: { type: 'USER', id: user.id.toString() }
                 });

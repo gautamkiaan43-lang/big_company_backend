@@ -23,10 +23,19 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
-    if (targetuser_role === 'consumer' && email) {
-      if (!validateBusinessEmailFormat(email, 'consumer')) {
+    if (phone) {
+      if (!/^\+2507\d{8}$/.test(phone)) {
         return res.status(400).json({ 
-          error: 'Consumer email must follow the format: name.consumer@big.co.rw' 
+          error: 'Phone number must start with +250 and follow the format +2507XXXXXXXX' 
+        });
+      }
+    }
+
+    if (targetuser_role === 'consumer' && email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ 
+          error: 'Invalid email format' 
         });
       }
     }
@@ -195,6 +204,19 @@ export const login = async (req: Request, res: Response) => {
             attempt_time: new Date().toLocaleString(),
             device: req.headers['user-agent'] || 'Unknown Device',
             ip: req.ip || 'Unknown'
+          },
+          relatedEntity: { type: 'USER', id: user.id.toString() }
+        });
+      }
+
+      // Notify Consumer of Failed Login (CUS-SMS-011)
+      if (user.role === 'consumer' && user.phone) {
+        await emailQueue.add('failed-login-alert', {
+          to: user.phone,
+          templateType: 'customer-failed-login', // Mapped to CUS-SMS-011
+          data: {
+            customer_name: user.name || 'Customer',
+            attempt_time: new Date().toLocaleString()
           },
           relatedEntity: { type: 'USER', id: user.id.toString() }
         });
