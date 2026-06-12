@@ -33,13 +33,14 @@ export const emailWorker = new Worker(
   'email-queue',
   async (job: Job) => {
     // Check if this is a scheduled task trigger (not a direct email job)
-    if (job.name === 'daily-performance-report') {
+    const scheduledJobs = ['daily-performance-report', 'retailer-daily-reports', 'pending-order-watcher', 'monthly-profit-report'];
+    if (scheduledJobs.includes(job.name)) {
       const { processScheduledTask } = await import('./scheduler');
       await processScheduledTask(job.name);
       return;
     }
 
-    const { to, subject: manualSubject, html: manualHtml, templateType, data, relatedEntity, logId } = job.data;
+    const { to, subject: manualSubject, html: manualHtml, templateType, data, relatedEntity, logId } = job.data || {};
 
     console.log(`[EmailWorker] Processing job ${job.id}:`);
     console.log(`  - Recipient: ${to}`);
@@ -144,7 +145,7 @@ emailWorker.on('failed', async (job: Job | undefined, err: Error) => {
   if (job && job.attemptsMade >= (job.opts.attempts || 3)) {
     console.error(`[EmailWorker] Job ${job.id} permanently failed after ${job.attemptsMade} attempts.`);
 
-    const logId = job.data.logId;
+    const logId = job.data?.logId;
     if (logId) {
       await prisma.systemEmailLog.update({
         where: { id: logId },
@@ -163,8 +164,8 @@ emailWorker.on('failed', async (job: Job | undefined, err: Error) => {
             <h2 style="color: #cf1322;">System Failure Alert</h2>
             <p>The Gmail API integration has failed to deliver an email after 3 retry attempts.</p>
             <hr/>
-            <p><strong>Failed Recipient:</strong> ${job.data.to}</p>
-            <p><strong>Email Type:</strong> ${job.data.templateType}</p>
+            <p><strong>Failed Recipient:</strong> ${job.data?.to}</p>
+            <p><strong>Email Type:</strong> ${job.data?.templateType}</p>
             <p><strong>Error Message:</strong> ${err.message}</p>
             <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
             <p style="margin-top: 20px; font-size: 12px; color: #8c8c8c;">This is an automated alert from the BIG Ltd Monitoring System.</p>
