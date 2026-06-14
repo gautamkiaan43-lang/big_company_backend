@@ -1273,9 +1273,10 @@ export const updateCustomerStatus = async (req: AuthRequest, res: Response) => {
     // Check if it's a profile ID
     let profile = await prisma.consumerProfile.findUnique({ where: { id: targetId } });
 
+    let updatedUser: any;
     if (profile) {
       console.log(`[AdminAPI] Found ConsumerProfile by ID ${targetId}, updating user ${profile.userId}`);
-      await prisma.user.update({
+      updatedUser = await prisma.user.update({
         where: { id: profile.userId },
         data: { isActive: newStatus }
       });
@@ -1288,10 +1289,30 @@ export const updateCustomerStatus = async (req: AuthRequest, res: Response) => {
       }
 
       console.log(`[AdminAPI] Found User by ID ${targetId}, updating directly`);
-      await prisma.user.update({
+      updatedUser = await prisma.user.update({
         where: { id: user.id },
         data: { isActive: newStatus }
       });
+    }
+
+    // Trigger Account Activation/Deactivation SMS (CUS-SMS-012)
+    if (updatedUser && updatedUser.phone) {
+      try {
+        const { emailQueue } = await import('../queues/email.queue');
+        await emailQueue.add('customer-account-status', {
+          to: updatedUser.phone,
+          templateType: 'customer-account-status', // Mapped to CUS-SMS-012
+          data: {
+            customer_name: updatedUser.name || 'Valued Customer',
+            status: newStatus ? 'activated' : 'deactivated',
+            date: new Date().toLocaleDateString(),
+            reason: newStatus ? 'Account activated or approved' : 'Account deactivated or suspended'
+          },
+          relatedEntity: { type: 'USER', id: updatedUser.id.toString() }
+        });
+      } catch (err: any) {
+        console.error('[AdminAPI] Failed to trigger customer-account-status notification:', err.message);
+      }
     }
 
     res.json({ success: true, message: `Customer account ${newStatus ? 'activated' : 'deactivated'} successfully` });

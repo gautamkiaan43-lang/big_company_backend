@@ -9,3 +9,6 @@
     at console.value (node:internal/console/constructor:313:16)
     at console.log (node:internal/console/constructor:416:26)
     at _log (C:\Users\Saif16\Desktop\big_pos\big_company_backend\node_modules\dotenv\lib\main.js:142:11)
+[2026-06-14T17:11:03.074Z] FATAL UNHANDLED REJECTION: PrismaClientInitializationError: Can't reach database server at `localhost:3306`
+
+Please make sure your database server is running at `localhost:3306`.

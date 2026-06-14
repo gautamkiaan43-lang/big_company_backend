@@ -245,6 +245,46 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
     // --- STEP 3: Call the appropriate Meter API (routed by provider) ---
     let apiResult: any;
 
+    // Resolve or auto-register GasMeter from predefined mappings
+    let meter: any = null;
+    try {
+        meter = await prisma.gasMeter.findFirst({
+            where: {
+                OR: [
+                    { meterNumber: meterNumber },
+                    { meterNumber: `MTR-${meterNumber}` },
+                    { meterNumber: meterNumber.replace(/^MTR-/i, '') }
+                ]
+            }
+        });
+
+        // Auto-Register meter if it does not exist but exists in GPRS mappings
+        if (!meter) {
+            const { gprsMapping } = await import('../config/gprsMapping');
+            const matchedMapping = gprsMapping.find(
+                m => m.meterNo === meterNumber || m.meterNo === meterNumber.replace(/^MTR-/i, '')
+            );
+
+            if (matchedMapping && consumerProfileId) {
+                console.log(`[GasRecharge] Auto-registering matched GPRS meter ${meterNumber} for consumer ${consumerProfileId}...`);
+                meter = await prisma.gasMeter.create({
+                    data: {
+                        consumerId: consumerProfileId,
+                        meterNumber: matchedMapping.meterNo,
+                        imei: matchedMapping.imei,
+                        serialNo: matchedMapping.serialNo,
+                        meterKey: matchedMapping.meterKey,
+                        isGprs: true,
+                        meterType: 'TOKEN',
+                        status: 'active'
+                    }
+                });
+            }
+        }
+    } catch (lookupErr: any) {
+        console.error('[GasRecharge] Error during meter lookup/registration:', lookupErr.message);
+    }
+
     try {
         if (selectedProvider === 'zhongyi') {
             console.log(`[GasRecharge] Routing ${meterType} recharge via Zhongyi API (Volume: ${totalVolume})`);
@@ -280,8 +320,28 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
         });
     }
 
+    // --- AUTOMATIC GPRS PUSH INTEGRATION & HANDOVER VERIFICATION ---
+    let pushResult = { success: true, error: null };
+    if (apiResult.success && meter && meter.imei && apiResult.token) {
+        console.log(`[GasRecharge] Meter ${meterNumber} has IMEI ${meter.imei}. Triggering remote token push...`);
+        try {
+            const pushRes = await pipingMeterService.pushTokenToImei(meter.imei, apiResult.token);
+            if (pushRes && !pushRes.success) {
+                pushResult.success = false;
+                pushResult.error = pushRes.error || 'Remote push rejected by GPRS management system';
+            } else {
+                apiResult.message = (apiResult.message || 'Recharge successful') + ' (Pushed to Meter)';
+            }
+        } catch (pushErr: any) {
+            pushResult.success = false;
+            pushResult.error = pushErr.message || 'Remote push connection error';
+        }
+    }
+
     // --- STEP 4: Update transaction with API result ---
-    const finalStatus = apiResult.success ? 'SUCCESS' : 'FAILED';
+    const isFullySuccessful = apiResult.success && pushResult.success;
+    const finalStatus = isFullySuccessful ? 'SUCCESS' : 'FAILED';
+    const finalErrorMsg = isFullySuccessful ? null : (pushResult.error || apiResult.error || 'Meter recharge failed');
 
     await prisma.gasRechargeTransaction.update({
         where: { id: txRecord.id },
@@ -289,11 +349,11 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
             status: finalStatus,
             tokenValue: apiResult.token || null,
             apiReference: apiResult.apiReference || null,
-            errorMessage: apiResult.error || null,
+            errorMessage: finalErrorMsg,
         },
     });
 
-    if (apiResult.success) {
+    if (isFullySuccessful) {
         // Create a Sale record for the recharge to ensure it appears in rewards history and reports
         let linkedSaleId: number | null = null;
         try {
@@ -321,31 +381,7 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
         }
 
         try {
-            const meter = await prisma.gasMeter.findFirst({
-                where: {
-                    OR: [
-                        { meterNumber: meterNumber },
-                        { meterNumber: `MTR-${meterNumber}` },
-                        { meterNumber: meterNumber.replace(/^MTR-/i, '') }
-                    ]
-                }
-            });
-
             if (meter) {
-                // --- AUTOMATIC GPRS PUSH INTEGRATION ---
-                // If the meter has a mapped IMEI, push the generated STS token remotely
-                if (meter.imei && apiResult.token) {
-                    console.log(`[GasRecharge] Meter ${meterNumber} has IMEI ${meter.imei}. Triggering remote token push...`);
-                    const pushResult = await pipingMeterService.pushTokenToImei(meter.imei, apiResult.token);
-                    
-                    if (pushResult.success) {
-                        apiResult.message = (apiResult.message || 'Recharge successful') + ' (Pushed to Meter)';
-                    } else {
-                        apiResult.message = (apiResult.message || 'Recharge successful') + ' (Remote push failed, manual entry required)';
-                        console.warn(`[GasRecharge] Remote push failed for meter ${meterNumber}: ${pushResult.error}`);
-                    }
-                }
-
                 if (consumerProfileId) {
                     const unitsPurchased = Number(apiResult.units) || 0;
                     

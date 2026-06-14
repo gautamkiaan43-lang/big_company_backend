@@ -1,0 +1,136 @@
+Connecting to live database...
+Connected successfully!
+--- RECENT GAS RECHARGE TRANSACTIONS ---
+Transactions:
+[
+  {
+    "id": 115,
+    "customerId": null,
+    "meterNumber": "TEST-001",
+    "meterType": "TOKEN",
+    "amount": 1000,
+    "status": "FAILED",
+    "tokenValue": null,
+    "apiReference": null,
+    "errorMessage": "Meter not found or system rejection (Empty response). Try VendingMeterDirectly for unregistered meters.",
+    "createdAt": "2026-06-14T03:18:17.679Z"
+  },
+  {
+    "id": 114,
+    "customerId": 17,
+    "meterNumber": "2510170000125",
+    "meterType": "TOKEN",
+    "amount": 65,
+    "status": "SUCCESS",
+    "tokenValue": "58767028506388302952",
+    "apiReference": "1063",
+    "errorMessage": null,
+    "createdAt": "2026-06-13T15:28:15.791Z"
+  },
+  {
+    "id": 113,
+    "customerId": 17,
+    "meterNumber": "2510170000125",
+    "meterType": "TOKEN",
+    "amount": 150,
+    "status": "SUCCESS",
+    "tokenValue": "37969462524487095394",
+    "apiReference": "1062",
+    "errorMessage": null,
+    "createdAt": "2026-06-13T12:48:25.542Z"
+  },
+  {
+    "id": 112,
+    "customerId": 17,
+    "meterNumber": "2510170000349",
+    "meterType": "TOKEN",
+    "amount": 150,
+    "status": "SUCCESS",
+    "tokenValue": "64021408944339898505",
+    "apiReference": "1061",
+    "errorMessage": null,
+    "createdAt": "2026-06-13T12:46:35.564Z"
+  },
+  {
+    "id": 111,
+    "customerId": 17,
+    "meterNumber": "2510170000331",
+    "meterType": "TOKEN",
+    "amount": 150,
+    "status": "SUCCESS",
+    "tokenValue": "64033468367987304397",
+    "apiReference": "1050",
+    "errorMessage": null,
+    "createdAt": "2026-06-12T14:10:19.511Z"
+  },
+  {
+    "id": 110,
+    "customerId": 17,
+    "meterNumber": "2510170000349",
+    "meterType": "TOKEN",
+    "amount": 200,
+    "status": "SUCCESS",
+    "tokenValue": "36840142563142838932",
+    "apiReference": "1049",
+    "errorMessage": null,
+    "createdAt": "2026-06-12T14:02:19.275Z"
+  },
+  {
+    "id": 109,
+    "customerId": 17,
+    "meterNumber": "2510170000125",
+    "meterType": "TOKEN",
+    "amount": 200,
+    "status": "SUCCESS",
+    "tokenValue": "71439754925950732445",
+    "apiReference": "1048",
+    "errorMessage": null,
+    "createdAt": "2026-06-12T11:07:59.531Z"
+  },
+  {
+    "id": 108,
+    "customerId": 17,
+    "meterNumber": "2510170000125",
+    "meterType": "TOKEN",
+    "amount": 200,
+    "status": "SUCCESS",
+    "tokenValue": "00213573906635727735",
+    "apiReference": "1047",
+    "errorMessage": null,
+    "createdAt": "2026-06-12T10:28:51.000Z"
+  },
+  {
+    "id": 107,
+    "customerId": 17,
+    "meterNumber": "2510170000125",
+    "meterType": "TOKEN",
+    "amount": 300,
+    "status": "SUCCESS",
+    "tokenValue": "50420320929506566171",
+    "apiReference": "1046",
+    "errorMessage": null,
+    "createdAt": "2026-06-12T10:16:44.216Z"
+  },
+  {
+    "id": 106,
+    "customerId": 17,
+    "meterNumber": "2510170000125",
+    "meterType": "TOKEN",
+    "amount": 150,
+    "status": "SUCCESS",
+    "tokenValue": "39655976484619721060",
+    "apiReference": "1044",
+    "errorMessage": null,
+    "createdAt": "2026-06-12T05:59:07.710Z"
+  }
+]
+
+--- METERS ASSOCIATED WITH THESE TRANSACTIONS ---
+Meters:
+[]
+
+--- SUMMARY OF ALL GPRS/PIPING METERS CONFIGURATION ---
+GPRS Summary:
+[]
+
+Database check completed successfully.

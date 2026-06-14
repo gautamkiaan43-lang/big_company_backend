@@ -7,7 +7,7 @@
 
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:9001';
+const BASE_URL = 'http://127.0.0.1:9001';
 
 const GREEN = '\x1b[32m';
 const RED = '\x1b[31m';
@@ -37,8 +37,7 @@ async function request(label: string, method: string, path: string, body?: any, 
             console.log(`  ${RED}Status: ${err.response.status}${RESET}`);
             console.log(`  ${RED}Response: ${JSON.stringify(err.response.data, null, 2)}${RESET}`);
         } else if (err.request) {
-            console.log(`\n${RED}▶ ${label} — FAILED: No response received.${RESET}`);
-            console.log(`  ${RED}Request: ${JSON.stringify(err.request._currentRequest || err.request, null, 2)}${RESET}`);
+            console.log(`\n${RED}▶ ${label} — FAILED: No response received. Code: ${err.code || 'UNKNOWN'}${RESET}`);
         } else {
             console.log(`\n${RED}▶ ${label} — FAILED: ${err.message}${RESET}`);
         }
@@ -56,7 +55,7 @@ async function main() {
     // ── STEP 1: Login ──────────────────────────────────
     console.log(`${BOLD}[STEP 1] Consumer Login${RESET}`);
     const loginRes = await request('Login with phone + pin', 'POST', '/store/auth/login', {
-        phone: '250788100001',
+        phone: '+250788100001',
         pin: '1234',
     }, false);
 
@@ -70,7 +69,7 @@ async function main() {
         // Try alternate login paths
         console.log(`  ${YELLOW}⚠ Trying alternate login endpoint...${RESET}`);
         const altLogin = await request('Login (alt endpoint)', 'POST', '/consumer/auth/login', {
-            phone: '250788100001',
+            phone: '+250788100001',
             pin: '1234',
         }, false);
 

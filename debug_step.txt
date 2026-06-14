@@ -1,0 +1,11 @@
+1. Script started
+2. Paths pushed
+3. Axios loaded
+4. JWT loaded
+5. Mysql loaded
+6. Starting test function
+7. Fetching root endpoint
+8. Root response received: 200
+9. Connecting to DB
+10. DB Connected
+11. Test completed
