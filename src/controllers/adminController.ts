@@ -76,7 +76,6 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: {
-          retailerProfile: { select: { shopName: true } },
           consumerProfile: { select: { fullName: true } }
         }
       }),
@@ -258,6 +257,7 @@ export const getCustomers = async (req: AuthRequest, res: Response) => {
       include: {
         user: true,
         wallets: true,
+        gasRewards: true,
         sales: {
           select: {
             totalAmount: true
@@ -280,8 +280,18 @@ export const getCustomers = async (req: AuthRequest, res: Response) => {
       const gasRewardWalletBalance = customer.wallets.find(w => w.type === 'gas_rewards_wallet')?.balance || 0;
       const gasBalance = gasRewardWalletBalance.toFixed(2) + " M³";
 
+      // Calculate active cash/dashboard wallet balance dynamically
+      const cashWallet = customer.wallets.find(w => w.type === 'dashboard_wallet' || w.type === 'main');
+      const walletBalance = cashWallet ? cashWallet.balance : 0;
+
+      // Calculate gas rewards balance dynamically (convert to points where 1 m3 = 100 points for frontend rendering)
+      const totalGasRewards = customer.gasRewards.reduce((sum, r) => sum + r.units, 0);
+      const rewardsPoints = totalGasRewards * 100;
+
       return {
         ...customer,
+        walletBalance,
+        rewardsPoints,
         orderCount,
         totalSpent,
         gasBalance
@@ -402,9 +412,31 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
 export const getRetailers = async (req: AuthRequest, res: Response) => {
   try {
     const retailers = await prisma.retailerProfile.findMany({
-      include: { user: true }
+      include: { 
+        user: true,
+        sales: {
+          select: {
+            totalAmount: true
+          }
+        },
+        credit: true
+      }
     });
-    res.json({ success: true, retailers });
+
+    const formattedRetailers = retailers.map(retailer => {
+      const orders = retailer.sales.length;
+      const revenue = retailer.sales.reduce((sum, s) => sum + s.totalAmount, 0);
+      const creditLimit = retailer.credit ? retailer.credit.creditLimit : retailer.creditLimit;
+
+      return {
+        ...retailer,
+        orders,
+        revenue,
+        creditLimit
+      };
+    });
+
+    res.json({ success: true, retailers: formattedRetailers });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -477,9 +509,28 @@ export const createRetailer = async (req: AuthRequest, res: Response) => {
 export const getWholesalers = async (req: AuthRequest, res: Response) => {
   try {
     const wholesalers = await prisma.wholesalerProfile.findMany({
-      include: { user: true }
+      include: {
+        user: true,
+        receivedOrders: {
+          select: {
+            totalAmount: true
+          }
+        }
+      }
     });
-    res.json({ success: true, wholesalers });
+
+    const formattedWholesalers = wholesalers.map(wholesaler => {
+      const orders = wholesaler.receivedOrders.length;
+      const revenue = wholesaler.receivedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+      return {
+        ...wholesaler,
+        orders,
+        revenue
+      };
+    });
+
+    res.json({ success: true, wholesalers: formattedWholesalers });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1907,6 +1958,8 @@ export const approveLoan = async (req: AuthRequest, res: Response) => {
       });
 
       return updatedLoan;
+    }, {
+      timeout: 45000 // Increase transaction timeout to 45 seconds to prevent timeout crashes on slow DB queries / high network latency
     });
 
     res.json({ success: true, loan: result });

@@ -505,10 +505,14 @@ export const getProfileStats = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ success: false, error: 'Customer profile not found' });
         }
 
-        // Get total orders count
-        const totalOrders = await prisma.customerOrder.count({
+        // Get total orders count (CustomerOrders + Sales/Retail Orders)
+        const totalCustomerOrders = await prisma.customerOrder.count({
             where: { consumerId: consumerProfile.id }
         });
+        const totalSales = await prisma.sale.count({
+            where: { consumerId: consumerProfile.id }
+        });
+        const totalOrders = totalCustomerOrders + totalSales;
 
         // Get wallet balances
         const wallets = await prisma.wallet.findMany({

@@ -1133,6 +1133,17 @@ export const repayLoan = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Load custom rates outside the transaction to avoid blocking I/O operations inside DB transaction
+    let rates = { customerInterestRate: 10, retailerInterestRate: 5, wholesalerInterestRate: 8 };
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const p = path.join(__dirname, '..', 'customRates.json');
+      if (fs.existsSync(p)) {
+        rates = { ...rates, ...JSON.parse(fs.readFileSync(p, 'utf8')) };
+      }
+    } catch (e) { }
+
     await prisma.$transaction(async (prisma) => {
       // Find the loan (ensure ID is number)
       const loan = await prisma.loan.findUnique({ where: { id: Number(id) } });
@@ -1167,17 +1178,12 @@ export const repayLoan = async (req: AuthRequest, res: Response) => {
           }
         });
 
-        // Add amount back to 'credit_wallet' (replenish limit)
+        // Track repayment transaction under 'credit_wallet' (do NOT increment limit/balance per client request)
         const creditWallet = await prisma.wallet.findFirst({
           where: { consumerId: consumerProfile.id, type: 'credit_wallet' }
         });
 
         if (creditWallet) {
-          await prisma.wallet.update({
-            where: { id: creditWallet.id },
-            data: { balance: { increment: amount } }
-          });
-
           await prisma.walletTransaction.create({
             data: {
               walletId: creditWallet.id,
@@ -1219,16 +1225,6 @@ export const repayLoan = async (req: AuthRequest, res: Response) => {
       }
 
       // 5. Check if fully paid (Including Interest)
-      let rates = { customerInterestRate: 10, retailerInterestRate: 5, wholesalerInterestRate: 8 };
-      try {
-        const fs = require('fs');
-        const path = require('path');
-        const p = path.join(__dirname, '..', 'customRates.json');
-        if (fs.existsSync(p)) {
-          rates = { ...rates, ...JSON.parse(fs.readFileSync(p, 'utf8')) };
-        }
-      } catch (e) { }
-
       const repayments = await prisma.walletTransaction.findMany({
         where: {
           reference: loan.id.toString(),
@@ -1249,6 +1245,8 @@ export const repayLoan = async (req: AuthRequest, res: Response) => {
           data: { status: 'repaid' }
         });
       }
+    }, {
+      timeout: 45000 // Increase transaction timeout to 45 seconds to prevent timeout crashes on slow DB queries / high network latency
     });
 
     res.json({ success: true, message: 'Loan repayment successful' });
