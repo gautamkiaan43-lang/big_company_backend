@@ -375,6 +375,18 @@ const updatePassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
                 relatedEntity: { type: 'USER', id: user.id.toString() }
             });
         }
+        // Notify Consumer of Security Update (CUS-SMS-007)
+        if (user.role === 'consumer' && user.phone) {
+            yield email_queue_1.emailQueue.add('customer-security-update', {
+                to: user.phone,
+                templateType: 'customer-security-update', // Mapped to CUS-SMS-007
+                data: {
+                    customer_name: user.name || 'Valued Customer',
+                    change_time: new Date().toLocaleString()
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
         res.json({ success: true, message: 'Password updated successfully' });
     }
     catch (error) {
@@ -423,6 +435,18 @@ const updatePin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                     change_time: new Date().toLocaleString(),
                     device: req.headers['user-agent'] || 'Unknown Device',
                     ip_address: req.ip || 'Unknown'
+                },
+                relatedEntity: { type: 'USER', id: user.id.toString() }
+            });
+        }
+        // Notify Consumer of Security Update (CUS-SMS-007)
+        if (user.role === 'consumer' && user.phone) {
+            yield email_queue_1.emailQueue.add('customer-security-update', {
+                to: user.phone,
+                templateType: 'customer-security-update', // Mapped to CUS-SMS-007
+                data: {
+                    customer_name: user.name || 'Valued Customer',
+                    change_time: new Date().toLocaleString()
                 },
                 relatedEntity: { type: 'USER', id: user.id.toString() }
             });

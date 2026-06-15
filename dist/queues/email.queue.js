@@ -75,12 +75,13 @@ exports.emailQueue = new bullmq_1.Queue('email-queue', {
  */
 exports.emailWorker = new bullmq_1.Worker('email-queue', (job) => __awaiter(void 0, void 0, void 0, function* () {
     // Check if this is a scheduled task trigger (not a direct email job)
-    if (job.name === 'daily-performance-report') {
+    const scheduledJobs = ['daily-performance-report', 'retailer-daily-reports', 'pending-order-watcher', 'monthly-profit-report'];
+    if (scheduledJobs.includes(job.name)) {
         const { processScheduledTask } = yield Promise.resolve().then(() => __importStar(require('./scheduler')));
         yield processScheduledTask(job.name);
         return;
     }
-    const { to, subject: manualSubject, html: manualHtml, templateType, data, relatedEntity, logId } = job.data;
+    const { to, subject: manualSubject, html: manualHtml, templateType, data, relatedEntity, logId } = job.data || {};
     console.log(`[EmailWorker] Processing job ${job.id}:`);
     console.log(`  - Recipient: ${to}`);
     console.log(`  - Event/Slug: ${templateType}`);
@@ -161,9 +162,10 @@ exports.emailWorker = new bullmq_1.Worker('email-queue', (job) => __awaiter(void
  * Handle permanent failures after all retries are exhausted
  */
 exports.emailWorker.on('failed', (job, err) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c;
     if (job && job.attemptsMade >= (job.opts.attempts || 3)) {
         console.error(`[EmailWorker] Job ${job.id} permanently failed after ${job.attemptsMade} attempts.`);
-        const logId = job.data.logId;
+        const logId = (_a = job.data) === null || _a === void 0 ? void 0 : _a.logId;
         if (logId) {
             yield prisma_1.default.systemEmailLog.update({
                 where: { id: logId },
@@ -181,8 +183,8 @@ exports.emailWorker.on('failed', (job, err) => __awaiter(void 0, void 0, void 0,
             <h2 style="color: #cf1322;">System Failure Alert</h2>
             <p>The Gmail API integration has failed to deliver an email after 3 retry attempts.</p>
             <hr/>
-            <p><strong>Failed Recipient:</strong> ${job.data.to}</p>
-            <p><strong>Email Type:</strong> ${job.data.templateType}</p>
+            <p><strong>Failed Recipient:</strong> ${(_b = job.data) === null || _b === void 0 ? void 0 : _b.to}</p>
+            <p><strong>Email Type:</strong> ${(_c = job.data) === null || _c === void 0 ? void 0 : _c.templateType}</p>
             <p><strong>Error Message:</strong> ${err.message}</p>
             <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
             <p style="margin-top: 20px; font-size: 12px; color: #8c8c8c;">This is an automated alert from the BIG Ltd Monitoring System.</p>

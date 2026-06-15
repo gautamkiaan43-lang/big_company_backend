@@ -255,6 +255,42 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
     }
     // --- STEP 3: Call the appropriate Meter API (routed by provider) ---
     let apiResult;
+    // Resolve or auto-register GasMeter from predefined mappings
+    let meter = null;
+    try {
+        meter = yield prisma_1.default.gasMeter.findFirst({
+            where: {
+                OR: [
+                    { meterNumber: meterNumber },
+                    { meterNumber: `MTR-${meterNumber}` },
+                    { meterNumber: meterNumber.replace(/^MTR-/i, '') }
+                ]
+            }
+        });
+        // Auto-Register meter if it does not exist but exists in GPRS mappings
+        if (!meter) {
+            const { gprsMapping } = yield Promise.resolve().then(() => __importStar(require('../config/gprsMapping')));
+            const matchedMapping = gprsMapping.find(m => m.meterNo === meterNumber || m.meterNo === meterNumber.replace(/^MTR-/i, ''));
+            if (matchedMapping && consumerProfileId) {
+                console.log(`[GasRecharge] Auto-registering matched GPRS meter ${meterNumber} for consumer ${consumerProfileId}...`);
+                meter = yield prisma_1.default.gasMeter.create({
+                    data: {
+                        consumerId: consumerProfileId,
+                        meterNumber: matchedMapping.meterNo,
+                        imei: matchedMapping.imei,
+                        serialNo: matchedMapping.serialNo,
+                        meterKey: matchedMapping.meterKey,
+                        isGprs: true,
+                        meterType: 'TOKEN',
+                        status: 'active'
+                    }
+                });
+            }
+        }
+    }
+    catch (lookupErr) {
+        console.error('[GasRecharge] Error during meter lookup/registration:', lookupErr.message);
+    }
     try {
         if (selectedProvider === 'zhongyi') {
             console.log(`[GasRecharge] Routing ${meterType} recharge via Zhongyi API (Volume: ${totalVolume})`);
@@ -290,18 +326,39 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
             transactionId: txRecord.id,
         });
     }
+    // --- AUTOMATIC GPRS PUSH INTEGRATION & HANDOVER VERIFICATION ---
+    let pushResult = { success: true, error: null };
+    if (apiResult.success && meter && meter.imei && apiResult.token) {
+        console.log(`[GasRecharge] Meter ${meterNumber} has IMEI ${meter.imei}. Triggering remote token push...`);
+        try {
+            const pushRes = yield pipingMeter_service_1.default.pushTokenToImei(meter.imei, apiResult.token);
+            if (pushRes && !pushRes.success) {
+                pushResult.success = false;
+                pushResult.error = pushRes.error || 'Remote push rejected by GPRS management system';
+            }
+            else {
+                apiResult.message = (apiResult.message || 'Recharge successful') + ' (Pushed to Meter)';
+            }
+        }
+        catch (pushErr) {
+            pushResult.success = false;
+            pushResult.error = pushErr.message || 'Remote push connection error';
+        }
+    }
     // --- STEP 4: Update transaction with API result ---
-    const finalStatus = apiResult.success ? 'SUCCESS' : 'FAILED';
+    const isFullySuccessful = apiResult.success && pushResult.success;
+    const finalStatus = isFullySuccessful ? 'SUCCESS' : 'FAILED';
+    const finalErrorMsg = isFullySuccessful ? null : (pushResult.error || apiResult.error || 'Meter recharge failed');
     yield prisma_1.default.gasRechargeTransaction.update({
         where: { id: txRecord.id },
         data: {
             status: finalStatus,
             tokenValue: apiResult.token || null,
             apiReference: apiResult.apiReference || null,
-            errorMessage: apiResult.error || null,
+            errorMessage: finalErrorMsg,
         },
     });
-    if (apiResult.success) {
+    if (isFullySuccessful) {
         // Create a Sale record for the recharge to ensure it appears in rewards history and reports
         let linkedSaleId = null;
         try {
@@ -328,29 +385,7 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
             console.error('[GasRecharge] Failed to create linked Sale record:', saleErr);
         }
         try {
-            const meter = yield prisma_1.default.gasMeter.findFirst({
-                where: {
-                    OR: [
-                        { meterNumber: meterNumber },
-                        { meterNumber: `MTR-${meterNumber}` },
-                        { meterNumber: meterNumber.replace(/^MTR-/i, '') }
-                    ]
-                }
-            });
             if (meter) {
-                // --- AUTOMATIC GPRS PUSH INTEGRATION ---
-                // If the meter has a mapped IMEI, push the generated STS token remotely
-                if (meter.imei && apiResult.token) {
-                    console.log(`[GasRecharge] Meter ${meterNumber} has IMEI ${meter.imei}. Triggering remote token push...`);
-                    const pushResult = yield pipingMeter_service_1.default.pushTokenToImei(meter.imei, apiResult.token);
-                    if (pushResult.success) {
-                        apiResult.message = (apiResult.message || 'Recharge successful') + ' (Pushed to Meter)';
-                    }
-                    else {
-                        apiResult.message = (apiResult.message || 'Recharge successful') + ' (Remote push failed, manual entry required)';
-                        console.warn(`[GasRecharge] Remote push failed for meter ${meterNumber}: ${pushResult.error}`);
-                    }
-                }
                 if (consumerProfileId) {
                     const unitsPurchased = Number(apiResult.units) || 0;
                     // Award Gas Topup record
@@ -432,7 +467,7 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
             console.error('[GasRecharge] Failed to dispatch SMS token:', smsErr.message);
         }
     }
-    if (!apiResult.success) {
+    if (!isFullySuccessful) {
         // Refund logic...
         if (userId && paymentMethod === 'wallet') {
             try {
@@ -463,7 +498,7 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
         }
         return res.status(400).json({
             success: false,
-            error: apiResult.error || 'Meter recharge failed.',
+            error: finalErrorMsg || 'Meter recharge failed.',
             transactionId: txRecord.id,
         });
     }

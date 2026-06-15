@@ -175,6 +175,9 @@ app.listen(PORT, () => __awaiter(void 0, void 0, void 0, function* () {
     // Initialize Background Scheduler
     const { initScheduler } = yield Promise.resolve().then(() => __importStar(require('./queues/scheduler')));
     yield initScheduler();
+    // Initialize Queue Workers
+    const { emailWorker } = yield Promise.resolve().then(() => __importStar(require('./queues/email.queue')));
+    console.log('✉️ Email/SMS Queue Worker initialized.');
     // Initialize Health Checker
     const { initHealthCheck } = yield Promise.resolve().then(() => __importStar(require('./services/healthCheck.service')));
     initHealthCheck();

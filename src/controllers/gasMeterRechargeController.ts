@@ -468,7 +468,7 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
         }
     }
 
-    if (!apiResult.success) {
+    if (!isFullySuccessful) {
         // Refund logic...
         if (userId && paymentMethod === 'wallet') {
             try {
@@ -499,7 +499,7 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
 
         return res.status(400).json({
             success: false,
-            error: apiResult.error || 'Meter recharge failed.',
+            error: finalErrorMsg || 'Meter recharge failed.',
             transactionId: txRecord.id,
         });
     }

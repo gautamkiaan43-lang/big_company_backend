@@ -19,7 +19,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const axios_1 = __importDefault(require("axios"));
-const BASE_URL = 'http://localhost:9001';
+const BASE_URL = 'http://127.0.0.1:9001';
 const GREEN = '\x1b[32m';
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -48,8 +48,7 @@ function request(label_1, method_1, path_1, body_1) {
                 console.log(`  ${RED}Response: ${JSON.stringify(err.response.data, null, 2)}${RESET}`);
             }
             else if (err.request) {
-                console.log(`\n${RED}▶ ${label} — FAILED: No response received.${RESET}`);
-                console.log(`  ${RED}Request: ${JSON.stringify(err.request._currentRequest || err.request, null, 2)}${RESET}`);
+                console.log(`\n${RED}▶ ${label} — FAILED: No response received. Code: ${err.code || 'UNKNOWN'}${RESET}`);
             }
             else {
                 console.log(`\n${RED}▶ ${label} — FAILED: ${err.message}${RESET}`);
@@ -69,7 +68,7 @@ function main() {
         // ── STEP 1: Login ──────────────────────────────────
         console.log(`${BOLD}[STEP 1] Consumer Login${RESET}`);
         const loginRes = yield request('Login with phone + pin', 'POST', '/store/auth/login', {
-            phone: '250788100001',
+            phone: '+250788100001',
             pin: '1234',
         }, false);
         if (((_a = loginRes === null || loginRes === void 0 ? void 0 : loginRes.data) === null || _a === void 0 ? void 0 : _a.token) || ((_b = loginRes === null || loginRes === void 0 ? void 0 : loginRes.data) === null || _b === void 0 ? void 0 : _b.access_token)) {
@@ -84,7 +83,7 @@ function main() {
             // Try alternate login paths
             console.log(`  ${YELLOW}⚠ Trying alternate login endpoint...${RESET}`);
             const altLogin = yield request('Login (alt endpoint)', 'POST', '/consumer/auth/login', {
-                phone: '250788100001',
+                phone: '+250788100001',
                 pin: '1234',
             }, false);
             if ((_g = altLogin === null || altLogin === void 0 ? void 0 : altLogin.data) === null || _g === void 0 ? void 0 : _g.token) {
