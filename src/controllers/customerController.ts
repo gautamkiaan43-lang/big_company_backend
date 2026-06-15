@@ -38,19 +38,7 @@ export const getCustomerProfile = async (req: AuthRequest, res: Response) => {
                 // Include sales to find last linked retailer (for backward compatibility / sorting)
                 sales: {
                     orderBy: { createdAt: 'desc' },
-                    take: 1,
-                    include: {
-                        retailerProfile: {
-                            include: {
-                                user: {
-                                    select: {
-                                        phone: true,
-                                        email: true,
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    take: 1
                 }
             }
         });
@@ -71,14 +59,30 @@ export const getCustomerProfile = async (req: AuthRequest, res: Response) => {
 
         // 2. Identify the "main" linked retailer (from last purchase)
         const lastSale = consumerProfile.sales?.[0];
-        const lastRetailer = lastSale?.retailerProfile ? {
-            id: lastSale.retailerProfile.id,
-            shopName: lastSale.retailerProfile.shopName,
-            phone: lastSale.retailerProfile.user?.phone,
-            email: lastSale.retailerProfile.user?.email,
-            address: lastSale.retailerProfile.address,
-            lastPurchaseDate: lastSale.createdAt,
-        } : null;
+        let lastRetailer = null;
+        if (lastSale) {
+            const retailerProfile = await prisma.retailerProfile.findUnique({
+                where: { id: lastSale.retailerId },
+                include: {
+                    user: {
+                        select: {
+                            phone: true,
+                            email: true,
+                        }
+                    }
+                }
+            });
+            if (retailerProfile) {
+                lastRetailer = {
+                    id: retailerProfile.id,
+                    shopName: retailerProfile.shopName,
+                    phone: retailerProfile.user?.phone,
+                    email: retailerProfile.user?.email,
+                    address: retailerProfile.address,
+                    lastPurchaseDate: lastSale.createdAt,
+                };
+            }
+        }
 
         // If no purchase yet, but has approved links, use the first approved one as linkedRetailer
         const primaryRetailer = lastRetailer || (linkedRetailers.length > 0 ? linkedRetailers[0] : null);

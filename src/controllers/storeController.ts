@@ -670,18 +670,19 @@ export const getMyOrders = async (req: AuthRequest, res: Response) => {
       include: {
         saleItems: {
           include: { product: true }
-        },
-        retailerProfile: {
-          select: {
-            id: true,
-            shopName: true,
-            address: true,
-            user: { select: { phone: true } }
-          }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
+
+    const retailerIds = Array.from(new Set(sales.map(s => s.retailerId)));
+    const retailers = await prisma.retailerProfile.findMany({
+      where: { id: { in: retailerIds } },
+      include: {
+        user: { select: { phone: true } }
+      }
+    });
+    const retailerMap = new Map(retailers.map(r => [r.id, r]));
 
     // 2. Fetch CustomerOrders (Gas/Other)
     const otherOrders = await prisma.customerOrder.findMany({
@@ -690,42 +691,45 @@ export const getMyOrders = async (req: AuthRequest, res: Response) => {
     });
 
     // 3. Normalize Sales to Order Interface
-    const normalizedSales = sales.map(sale => ({
-      id: sale.id,
-      order_number: `ORD-${sale.createdAt.getFullYear()}-${sale.id.toString().padStart(4, '0')}`, // Generate if missing
-      status: sale.status,
-      retailer: {
-        id: sale.retailerId,
-        name: sale.retailerProfile.shopName,
-        location: sale.retailerProfile.address || 'Unknown Location',
-        phone: sale.retailerProfile.user?.phone || 'N/A'
-      },
-      items: sale.saleItems.map(item => ({
-        id: item.id,
-        product_id: item.productId,
-        product_name: item.product.name,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total: item.price * item.quantity,
-        image: item.product.image // Include product image
-      })),
-      subtotal: sale.totalAmount, // Assuming no extra fees for now
-      delivery_fee: 0,
-      total: sale.totalAmount,
-      delivery_address: consumerProfile.address || 'Pickup',
-      created_at: sale.createdAt.toISOString(),
-      updated_at: sale.updatedAt.toISOString(),
-      payment_method: sale.paymentMethod,
-      // Optional fields
-      packager: undefined,
-      shipperName: sale.shipperName,
-      shipperPhone: sale.shipperPhone,
-      vehiclePlate: sale.vehiclePlate,
-      notes: sale.notes || '',
-      meter_id: sale.meterId,
-      rejection_reason: sale.rejectionReason,
-      cancellation_reason: sale.cancellationReason
-    }));
+    const normalizedSales = sales.map(sale => {
+      const retailerProfile = retailerMap.get(sale.retailerId);
+      return {
+        id: sale.id,
+        order_number: `ORD-${sale.createdAt.getFullYear()}-${sale.id.toString().padStart(4, '0')}`, // Generate if missing
+        status: sale.status,
+        retailer: {
+          id: sale.retailerId,
+          name: retailerProfile?.shopName || 'Unknown Retailer',
+          location: retailerProfile?.address || 'Unknown Location',
+          phone: retailerProfile?.user?.phone || 'N/A'
+        },
+        items: sale.saleItems.map(item => ({
+          id: item.id,
+          product_id: item.productId,
+          product_name: item.product.name,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total: item.price * item.quantity,
+          image: item.product.image // Include product image
+        })),
+        subtotal: sale.totalAmount, // Assuming no extra fees for now
+        delivery_fee: 0,
+        total: sale.totalAmount,
+        delivery_address: consumerProfile.address || 'Pickup',
+        created_at: sale.createdAt.toISOString(),
+        updated_at: sale.updatedAt.toISOString(),
+        payment_method: sale.paymentMethod,
+        // Optional fields
+        packager: undefined,
+        shipperName: sale.shipperName,
+        shipperPhone: sale.shipperPhone,
+        vehiclePlate: sale.vehiclePlate,
+        notes: sale.notes || '',
+        meter_id: sale.meterId,
+        rejection_reason: sale.rejectionReason,
+        cancellation_reason: sale.cancellationReason
+      };
+    });
 
     // 4. Normalize CustomerOrders (Gas/Service)
     const normalizedOthers = otherOrders.map(order => {
