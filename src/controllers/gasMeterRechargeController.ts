@@ -431,22 +431,24 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
 
         // --- SMS DISPATCH FOR TOKEN/RECHARGE ---
         try {
-            const smsRecipient = phone || (req.user as any)?.phone;
-            if (smsRecipient) {
-                const units = apiResult.units || totalVolume;
-                
-                // Fetch the consumer's name to personalize the greeting
-                let customerName = 'Valued Customer';
-                if (consumerProfileId) {
-                    const consumer = await prisma.consumerProfile.findUnique({
-                        where: { id: consumerProfileId },
-                        include: { user: true }
-                    });
-                    if (consumer) {
-                        customerName = consumer.fullName || consumer.user.name || 'Valued Customer';
+            let smsRecipient = phone;
+            let customerName = 'Valued Customer';
+
+            if (consumerProfileId) {
+                const consumer = await prisma.consumerProfile.findUnique({
+                    where: { id: consumerProfileId },
+                    include: { user: true }
+                });
+                if (consumer) {
+                    customerName = consumer.fullName || consumer.user.name || 'Valued Customer';
+                    if (!smsRecipient) {
+                        smsRecipient = consumer.user.phone;
                     }
                 }
+            }
 
+            if (smsRecipient) {
+                const units = apiResult.units || totalVolume;
                 console.log(`[GasRecharge] Dispatching dynamic SMS token to ${smsRecipient} via queue...`);
                 const { emailQueue } = await import('../queues/email.queue');
                 await emailQueue.add('gas-recharge-success', {

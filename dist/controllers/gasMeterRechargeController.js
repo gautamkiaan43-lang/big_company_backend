@@ -66,7 +66,7 @@ const zhongyiMeter_service_1 = __importDefault(require("../services/zhongyiMeter
  * paymentMethod: "wallet" | "mobile_money" | "nfc_card"
  */
 const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _a, _b, _c;
     const { meterType, amount, paymentMethod, phone, cardId, provider, // 'stronpower' (default) | 'zhongyi'
     isVendByUnit, // New: true = unit-based, false = money-based
     token, // New: for remote Piping token pushes
@@ -432,20 +432,22 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
         }
         // --- SMS DISPATCH FOR TOKEN/RECHARGE ---
         try {
-            const smsRecipient = phone || ((_d = req.user) === null || _d === void 0 ? void 0 : _d.phone);
-            if (smsRecipient) {
-                const units = apiResult.units || totalVolume;
-                // Fetch the consumer's name to personalize the greeting
-                let customerName = 'Valued Customer';
-                if (consumerProfileId) {
-                    const consumer = yield prisma_1.default.consumerProfile.findUnique({
-                        where: { id: consumerProfileId },
-                        include: { user: true }
-                    });
-                    if (consumer) {
-                        customerName = consumer.fullName || consumer.user.name || 'Valued Customer';
+            let smsRecipient = phone;
+            let customerName = 'Valued Customer';
+            if (consumerProfileId) {
+                const consumer = yield prisma_1.default.consumerProfile.findUnique({
+                    where: { id: consumerProfileId },
+                    include: { user: true }
+                });
+                if (consumer) {
+                    customerName = consumer.fullName || consumer.user.name || 'Valued Customer';
+                    if (!smsRecipient) {
+                        smsRecipient = consumer.user.phone;
                     }
                 }
+            }
+            if (smsRecipient) {
+                const units = apiResult.units || totalVolume;
                 console.log(`[GasRecharge] Dispatching dynamic SMS token to ${smsRecipient} via queue...`);
                 const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
                 yield emailQueue.add('gas-recharge-success', {
