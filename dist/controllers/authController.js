@@ -460,9 +460,9 @@ const updatePin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
 exports.updatePin = updatePin;
 const forgotPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { email } = req.body;
+        const { email, method } = req.body;
         if (!email) {
-            return res.status(400).json({ error: 'Email is required' });
+            return res.status(400).json({ error: 'Email or phone number is required' });
         }
         let targetuser_role = req.body.role;
         if (!targetuser_role) {
@@ -477,15 +477,66 @@ const forgotPassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
             else if (req.baseUrl.includes('admin'))
                 targetuser_role = 'admin';
         }
-        // Find user matching role and email
-        const user = yield prisma_1.default.user.findFirst({
-            where: {
-                email: email,
-                role: targetuser_role
+        // Determine normalized phone search value if it looks like a phone number or method is 'phone'
+        let searchPhone = email.trim();
+        if (searchPhone.startsWith('07'))
+            searchPhone = '+250' + searchPhone.substring(1);
+        else if (searchPhone.startsWith('7'))
+            searchPhone = '+250' + searchPhone;
+        else if (searchPhone.startsWith('250'))
+            searchPhone = '+' + searchPhone;
+        else if (searchPhone.match(/^\d{9,10}$/) && !searchPhone.startsWith('+'))
+            searchPhone = '+250' + searchPhone;
+        // Find user matching role and email/phone
+        let user;
+        if (method === 'phone') {
+            user = yield prisma_1.default.user.findFirst({
+                where: {
+                    phone: searchPhone,
+                    role: targetuser_role
+                }
+            });
+            if (!user) {
+                return res.status(404).json({ error: 'User with this phone number and role not found' });
             }
-        });
-        if (!user) {
-            return res.status(404).json({ error: 'User with this email and role not found' });
+        }
+        else if (method === 'email') {
+            user = yield prisma_1.default.user.findFirst({
+                where: {
+                    email: email.trim(),
+                    role: targetuser_role
+                }
+            });
+            if (!user) {
+                return res.status(404).json({ error: 'User with this email address and role not found' });
+            }
+        }
+        else {
+            // Fallback: search both
+            user = yield prisma_1.default.user.findFirst({
+                where: {
+                    OR: [
+                        { email: email.trim() },
+                        { phone: searchPhone }
+                    ],
+                    role: targetuser_role
+                }
+            });
+            if (!user) {
+                return res.status(404).json({ error: 'User not found with matching email/phone and role' });
+            }
+        }
+        // Determine target delivery channel based on user configuration and selected method
+        let deliveryChannel = 'email';
+        if (method === 'phone' || (!user.email && user.phone)) {
+            deliveryChannel = 'sms';
+        }
+        // Validation checks for chosen delivery channel availability
+        if (deliveryChannel === 'email' && !user.email) {
+            return res.status(400).json({ error: 'Your account does not have a registered email address. Please use the phone option.' });
+        }
+        if (deliveryChannel === 'sms' && !user.phone) {
+            return res.status(400).json({ error: 'Your account does not have a registered phone number. Please use the email option.' });
         }
         // Generate random 8-character password
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -503,10 +554,9 @@ const forgotPassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
                 tempPassword: tempPass
             }
         });
-        // Send email using EmailService
-        const { EmailService } = yield Promise.resolve().then(() => __importStar(require('../services/email.service')));
+        // Send password reset notification
         const subject = '🔐 Temporary Password Reset - Big Innovation Group';
-        const html = `
+        const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
         <div style="text-align: center; margin-bottom: 20px;">
           <h2 style="color: #0f766e;">Big Innovation Group Ltd</h2>
@@ -523,8 +573,44 @@ const forgotPassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
         <p style="font-size: 12px; color: #94a3b8; text-align: center;">© ${new Date().getFullYear()} Big Innovation Group Ltd. All rights reserved.</p>
       </div>
     `;
-        yield EmailService.sendEmail(email, subject, html, 'password-reset', { type: 'USER', id: user.id.toString() });
-        return res.json({ success: true, message: 'Temporary password sent to email' });
+        try {
+            if (deliveryChannel === 'email') {
+                yield email_queue_1.emailQueue.add('password-reset', {
+                    to: user.email,
+                    subject,
+                    html: htmlContent,
+                    templateType: 'password-reset',
+                    relatedEntity: { type: 'USER', id: user.id.toString() }
+                });
+            }
+            else {
+                yield email_queue_1.emailQueue.add('password-reset-SMS', {
+                    to: user.phone,
+                    templateType: 'password-reset-SMS',
+                    html: `Your temporary password is: ${tempPass}. Please log in and change it immediately.`,
+                    relatedEntity: { type: 'USER', id: user.id.toString() }
+                });
+            }
+        }
+        catch (queueError) {
+            console.error('[forgotPassword] Failed to queue password reset notification. Attempting fallback direct delivery.', queueError);
+            try {
+                if (deliveryChannel === 'email') {
+                    const { EmailService } = yield Promise.resolve().then(() => __importStar(require('../services/email.service')));
+                    yield EmailService.sendEmail(user.email, subject, htmlContent, 'password-reset', { type: 'USER', id: user.id.toString() });
+                }
+                else {
+                    const { SMSService } = yield Promise.resolve().then(() => __importStar(require('../services/sms.service')));
+                    yield SMSService.sendSMS(user.phone, `Your temporary password is: ${tempPass}. Please log in and change it immediately.`, 'password-reset-SMS', { type: 'USER', id: user.id.toString() });
+                }
+            }
+            catch (fallbackError) {
+                console.error('[forgotPassword] Fallback direct delivery also failed:', fallbackError.message);
+            }
+        }
+        return res.json(Object.assign({ success: true, message: deliveryChannel === 'email'
+                ? 'Temporary password sent to email'
+                : 'Temporary password sent via SMS' }, (process.env.NODE_ENV === 'development' && { dev_temp_pass: tempPass })));
     }
     catch (error) {
         console.error('[forgotPassword] Error:', error);

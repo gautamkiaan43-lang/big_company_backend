@@ -83,19 +83,7 @@ const getCustomerProfile = (req, res) => __awaiter(void 0, void 0, void 0, funct
                 // Include sales to find last linked retailer (for backward compatibility / sorting)
                 sales: {
                     orderBy: { createdAt: 'desc' },
-                    take: 1,
-                    include: {
-                        retailerProfile: {
-                            include: {
-                                user: {
-                                    select: {
-                                        phone: true,
-                                        email: true,
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    take: 1
                 }
             }
         });
@@ -116,14 +104,30 @@ const getCustomerProfile = (req, res) => __awaiter(void 0, void 0, void 0, funct
         });
         // 2. Identify the "main" linked retailer (from last purchase)
         const lastSale = (_a = consumerProfile.sales) === null || _a === void 0 ? void 0 : _a[0];
-        const lastRetailer = (lastSale === null || lastSale === void 0 ? void 0 : lastSale.retailerProfile) ? {
-            id: lastSale.retailerProfile.id,
-            shopName: lastSale.retailerProfile.shopName,
-            phone: (_b = lastSale.retailerProfile.user) === null || _b === void 0 ? void 0 : _b.phone,
-            email: (_c = lastSale.retailerProfile.user) === null || _c === void 0 ? void 0 : _c.email,
-            address: lastSale.retailerProfile.address,
-            lastPurchaseDate: lastSale.createdAt,
-        } : null;
+        let lastRetailer = null;
+        if (lastSale) {
+            const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
+                where: { id: lastSale.retailerId },
+                include: {
+                    user: {
+                        select: {
+                            phone: true,
+                            email: true,
+                        }
+                    }
+                }
+            });
+            if (retailerProfile) {
+                lastRetailer = {
+                    id: retailerProfile.id,
+                    shopName: retailerProfile.shopName,
+                    phone: (_b = retailerProfile.user) === null || _b === void 0 ? void 0 : _b.phone,
+                    email: (_c = retailerProfile.user) === null || _c === void 0 ? void 0 : _c.email,
+                    address: retailerProfile.address,
+                    lastPurchaseDate: lastSale.createdAt,
+                };
+            }
+        }
         // If no purchase yet, but has approved links, use the first approved one as linkedRetailer
         const primaryRetailer = lastRetailer || (linkedRetailers.length > 0 ? linkedRetailers[0] : null);
         // Check and generate Gas Reward Wallet ID if missing (Requirement: Use Phone Number)
@@ -508,10 +512,14 @@ const getProfileStats = (req, res) => __awaiter(void 0, void 0, void 0, function
         if (!consumerProfile) {
             return res.status(404).json({ success: false, error: 'Customer profile not found' });
         }
-        // Get total orders count
-        const totalOrders = yield prisma_1.default.customerOrder.count({
+        // Get total orders count (CustomerOrders + Sales/Retail Orders)
+        const totalCustomerOrders = yield prisma_1.default.customerOrder.count({
             where: { consumerId: consumerProfile.id }
         });
+        const totalSales = yield prisma_1.default.sale.count({
+            where: { consumerId: consumerProfile.id }
+        });
+        const totalOrders = totalCustomerOrders + totalSales;
         // Get wallet balances
         const wallets = yield prisma_1.default.wallet.findMany({
             where: { consumerId: consumerProfile.id }

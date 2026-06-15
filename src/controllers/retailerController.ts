@@ -214,8 +214,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
         lowStockCount, // Number
 
         // Wallets
-        capitalWallet,
-        profitWallet, // Keep for backward compatibility (Unknown if fontend relies on it)
+        capitalWallet: retailerProfile.walletBalance,
+        profitWallet: totalProfit, // Keep for backward compatibility (now holds realized profit)
         walletBalance: retailerProfile.walletBalance,
         creditLimit: retailerProfile.creditLimit,
 
@@ -1982,8 +1982,7 @@ export const makeRepayment = async (req: AuthRequest, res: Response) => {
         await prisma.retailerCredit.update({
           where: { retailerId: retailerProfile.id },
           data: {
-            usedCredit: { decrement: amount },
-            availableCredit: { increment: amount }
+            usedCredit: { decrement: amount }
           }
         });
       }
@@ -2060,8 +2059,7 @@ export const payCredit = async (req: AuthRequest, res: Response) => {
         await tx.retailerCredit.update({
           where: { retailerId: retailerProfile.id },
           data: {
-            usedCredit: { decrement: amount },
-            availableCredit: { increment: amount }
+            usedCredit: { decrement: amount }
           }
         });
       }

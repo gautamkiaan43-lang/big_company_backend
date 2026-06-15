@@ -25,15 +25,23 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
     const customerLast7d = await prisma.consumerProfile.count({ where: { user: { createdAt: { gte: last7d } } } });
     const customerLast30d = await prisma.consumerProfile.count({ where: { user: { createdAt: { gte: last30d } } } });
 
-    // 2. Orders (Sales)
-    const sales = await prisma.sale.findMany();
-    const orderTotal = sales.length;
-    const orderPending = sales.filter(s => s.status === 'pending').length;
-    const orderProcessing = sales.filter(s => s.status === 'processing').length;
-    const orderDelivered = sales.filter(s => s.status === 'completed' || s.status === 'delivered').length;
-    const orderCancelled = sales.filter(s => s.status === 'cancelled').length;
-    const totalRevenue = Math.round(sales.reduce((acc, s) => acc + s.totalAmount, 0));
-    const todayOrders = sales.filter(s => s.createdAt >= todayStart).length;
+    // 2. Orders & Revenue (Combine B2C Sales and B2B Wholesaler Orders)
+    const [sales, wholesaleOrders] = await Promise.all([
+      prisma.sale.findMany(),
+      prisma.order.findMany()
+    ]);
+
+    const orderTotal = sales.length + wholesaleOrders.length;
+    const orderPending = sales.filter(s => s.status === 'pending').length + wholesaleOrders.filter(o => o.status === 'pending').length;
+    const orderProcessing = sales.filter(s => s.status === 'processing').length + wholesaleOrders.filter(o => o.status === 'processing').length;
+    const orderDelivered = sales.filter(s => s.status === 'completed' || s.status === 'delivered').length + wholesaleOrders.filter(o => o.status === 'delivered').length;
+    const orderCancelled = sales.filter(s => s.status === 'cancelled').length + wholesaleOrders.filter(o => o.status === 'cancelled').length;
+
+    const salesRevenue = sales.reduce((acc, s) => acc + s.totalAmount, 0);
+    const wholesaleRevenue = wholesaleOrders.filter(o => o.status === 'delivered').reduce((acc, o) => acc + o.totalAmount, 0);
+    const totalRevenue = Math.round(salesRevenue + wholesaleRevenue);
+
+    const todayOrders = sales.filter(s => s.createdAt >= todayStart).length + wholesaleOrders.filter(o => o.createdAt >= todayStart).length;
 
     // 3. Transactions (using WalletTransaction)
     const txs = await prisma.walletTransaction.findMany({ where: { createdAt: { gte: last30d } } });
@@ -69,6 +77,20 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
     const retailerVerified = await prisma.retailerProfile.count({ where: { isVerified: true } });
     const wholesalerTotal = await prisma.wholesalerProfile.count();
     const wholesalerActive = await prisma.wholesalerProfile.count({ where: { user: { isActive: true } } });
+
+    // 8. System-wide Wallets (Consumer & Retailer cash wallet balances)
+    const consumerWalletSum = await prisma.consumerProfile.aggregate({ _sum: { walletBalance: true } });
+    const retailerWalletSum = await prisma.retailerProfile.aggregate({ _sum: { walletBalance: true } });
+    const totalWalletBalance = Math.round((consumerWalletSum._sum.walletBalance || 0) + (retailerWalletSum._sum.walletBalance || 0));
+
+    // 9. System-wide Rewards (Consumer points)
+    const rewardsSum = await prisma.consumerProfile.aggregate({ _sum: { rewardsPoints: true } });
+    const totalRewardsPoints = Math.round(rewardsSum._sum.rewardsPoints || 0);
+
+    // 10. System-wide Inventory (Stock & evaluated cost value)
+    const allProducts = await prisma.product.findMany();
+    const totalProductsCount = allProducts.length;
+    const totalInventoryValue = Math.round(allProducts.reduce((sum, p) => sum + (p.stock * (p.costPrice || p.price || 0)), 0));
 
     // Recent Activity - Merge Sales, New Customers, Loans, and Gas Topups
     const [recentSales, recentConsumers, recentLoans, recentGas] = await Promise.all([
@@ -162,6 +184,9 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
       nfcCards: { total: nfcTotal, active: nfcActive, linked: nfcLinked },
       retailers: { total: retailerTotal, active: retailerActive, verified: retailerVerified },
       wholesalers: { total: wholesalerTotal, active: wholesalerActive },
+      wallets: { totalBalance: totalWalletBalance },
+      rewards: { totalPoints: totalRewardsPoints },
+      inventory: { totalProducts: totalProductsCount, totalValue: totalInventoryValue },
       recentActivity
     };
 
@@ -214,8 +239,21 @@ export const getReports = async (req: AuthRequest, res: Response) => {
     const pendingLoans = loans.filter(l => l.status === 'pending').length;
     const totalLoanAmount = loans.reduce((acc, l) => (l.status === 'active' || l.status === 'approved') ? acc + l.amount : acc, 0);
 
-    // 3. Growth rate (Simple mock for now, or compare with previous period if data exists)
-    const growthRate = 12.5;
+    // 3. Dynamic Growth rate calculation
+    const periodDuration = now.getTime() - startDate.getTime();
+    const prevPeriodStart = new Date(startDate.getTime() - periodDuration);
+    const prevSales = await prisma.sale.findMany({
+      where: {
+        createdAt: {
+          gte: prevPeriodStart,
+          lt: startDate
+        }
+      }
+    });
+    const prevRevenue = prevSales.reduce((acc, s) => acc + s.totalAmount, 0);
+    const growthRate = prevRevenue > 0 
+      ? Math.round(((totalRevenue - prevRevenue) / prevRevenue) * 1000) / 10
+      : 12.5; // fallback to 12.5 if no previous data
 
     res.json({
       success: true,
@@ -715,49 +753,39 @@ export const getLoans = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // 3. Dynamic Wholesaler Loans Simulation
-    const wRate = Number(rates.wholesalerInterestRate) || 8;
-    const wInterest1 = Math.round(5000000 * (wRate / 100));
-    const wInterest2 = Math.round(12000000 * (wRate / 100));
-
-    const wholesalerLoans = [
-      {
-        id: 20001,
-        user_id: 'WHL-01',
-        user_name: 'Alpha Wholesale Dist.',
-        user_type: 'wholesaler',
-        amount: 5000000,
-        interest_rate: wRate,
-        interest_amount: wInterest1,
-        duration_months: 6,
-        monthly_payment: Math.round((5000000 + wInterest1) / 6),
-        total_repayable: 5000000 + wInterest1,
-        amount_paid: 2000000,
-        amount_remaining: (5000000 + wInterest1) - 2000000,
-        status: 'active',
-        lender: 'Big Innovation Group Ltd',
-        created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-        due_date: new Date(Date.now() + 135 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 20002,
-        user_id: 'WHL-02',
-        user_name: 'Mega Supply Rwanda',
-        user_type: 'wholesaler',
-        amount: 12000000,
-        interest_rate: wRate,
-        interest_amount: wInterest2,
-        duration_months: 12,
-        monthly_payment: Math.round((12000000 + wInterest2) / 12),
-        total_repayable: 12000000 + wInterest2,
-        amount_paid: 12000000 + wInterest2,
-        amount_remaining: 0,
-        status: 'completed',
-        lender: 'Partner Bank (Equity Bank)',
-        created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-        due_date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+    // 3. Dynamic Wholesaler Loans based on Supplier Payments (Outstanding bills acting as wholesaler liabilities)
+    const supplierPayments = await prisma.supplierPayment.findMany({
+      include: {
+        supplier: true,
+        wholesalerProfile: {
+          include: { user: true }
+        }
       }
-    ];
+    });
+
+    const wholesalerLoans = supplierPayments.map((sp) => {
+      const rate = Number(rates.wholesalerInterestRate) || 8;
+      const interestAmount = Math.round(sp.amount * (rate / 100));
+      const totalRepayable = sp.amount + interestAmount;
+      return {
+        id: 20000 + sp.id,
+        user_id: sp.wholesalerProfile?.userId?.toString() || sp.wholesalerId.toString(),
+        user_name: sp.wholesalerProfile?.companyName || 'Wholesaler Company',
+        user_type: 'wholesaler',
+        amount: sp.amount,
+        interest_rate: rate,
+        interest_amount: interestAmount,
+        duration_months: 1,
+        monthly_payment: totalRepayable,
+        total_repayable: totalRepayable,
+        amount_paid: sp.status === 'completed' ? totalRepayable : 0,
+        amount_remaining: sp.status === 'completed' ? 0 : totalRepayable,
+        status: sp.status === 'completed' ? 'completed' : 'active',
+        lender: sp.supplier.name,
+        created_at: sp.paymentDate.toISOString(),
+        due_date: new Date(sp.paymentDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      };
+    });
 
     const allLoans = [...consumerLoans, ...retailerLoans, ...wholesalerLoans];
     res.json({ success: true, loans: allLoans });
@@ -3285,14 +3313,16 @@ export const confirmWholesaleDelivery = async (req: AuthRequest, res: Response) 
  */
 export const getEmailLogs = async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 50, status, search } = req.query;
+    const { page = 1, limit = 50, status, channel, search } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const where: any = {};
     if (status) where.status = status;
+    if (channel) where.channel = channel;
     if (search) {
       where.OR = [
         { recipientEmail: { contains: search as string } },
+        { recipientPhone: { contains: search as string } },
         { templateType: { contains: search as string } },
         { relatedEntityId: { contains: search as string } },
         // @ts-ignore

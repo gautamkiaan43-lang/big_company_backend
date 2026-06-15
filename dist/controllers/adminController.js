@@ -114,7 +114,6 @@ const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 take: 5,
                 orderBy: { createdAt: 'desc' },
                 include: {
-                    retailerProfile: { select: { shopName: true } },
                     consumerProfile: { select: { fullName: true } }
                 }
             }),
@@ -296,6 +295,7 @@ const getCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             include: {
                 user: true,
                 wallets: true,
+                gasRewards: true,
                 sales: {
                     select: {
                         totalAmount: true
@@ -317,7 +317,15 @@ const getCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             const totalSpent = customer.sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
             const gasRewardWalletBalance = ((_a = customer.wallets.find(w => w.type === 'gas_rewards_wallet')) === null || _a === void 0 ? void 0 : _a.balance) || 0;
             const gasBalance = gasRewardWalletBalance.toFixed(2) + " M³";
-            return Object.assign(Object.assign({}, customer), { orderCount,
+            // Calculate active cash/dashboard wallet balance dynamically
+            const cashWallet = customer.wallets.find(w => w.type === 'dashboard_wallet' || w.type === 'main');
+            const walletBalance = cashWallet ? cashWallet.balance : 0;
+            // Calculate gas rewards balance dynamically (convert to points where 1 m3 = 100 points for frontend rendering)
+            const totalGasRewards = customer.gasRewards.reduce((sum, r) => sum + r.units, 0);
+            const rewardsPoints = totalGasRewards * 100;
+            return Object.assign(Object.assign({}, customer), { walletBalance,
+                rewardsPoints,
+                orderCount,
                 totalSpent,
                 gasBalance });
         });
@@ -421,9 +429,25 @@ exports.createCustomer = createCustomer;
 const getRetailers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const retailers = yield prisma_1.default.retailerProfile.findMany({
-            include: { user: true }
+            include: {
+                user: true,
+                sales: {
+                    select: {
+                        totalAmount: true
+                    }
+                },
+                credit: true
+            }
         });
-        res.json({ success: true, retailers });
+        const formattedRetailers = retailers.map(retailer => {
+            const orders = retailer.sales.length;
+            const revenue = retailer.sales.reduce((sum, s) => sum + s.totalAmount, 0);
+            const creditLimit = retailer.credit ? retailer.credit.creditLimit : retailer.creditLimit;
+            return Object.assign(Object.assign({}, retailer), { orders,
+                revenue,
+                creditLimit });
+        });
+        res.json({ success: true, retailers: formattedRetailers });
     }
     catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -491,9 +515,22 @@ exports.createRetailer = createRetailer;
 const getWholesalers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const wholesalers = yield prisma_1.default.wholesalerProfile.findMany({
-            include: { user: true }
+            include: {
+                user: true,
+                receivedOrders: {
+                    select: {
+                        totalAmount: true
+                    }
+                }
+            }
         });
-        res.json({ success: true, wholesalers });
+        const formattedWholesalers = wholesalers.map(wholesaler => {
+            const orders = wholesaler.receivedOrders.length;
+            const revenue = wholesaler.receivedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+            return Object.assign(Object.assign({}, wholesaler), { orders,
+                revenue });
+        });
+        res.json({ success: true, wholesalers: formattedWholesalers });
     }
     catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1755,7 +1792,9 @@ const approveLoan = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 }
             });
             return updatedLoan;
-        }));
+        }), {
+            timeout: 45000 // Increase transaction timeout to 45 seconds to prevent timeout crashes on slow DB queries / high network latency
+        });
         res.json({ success: true, loan: result });
     }
     catch (error) {

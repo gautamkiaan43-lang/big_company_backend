@@ -71,12 +71,13 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       })
     ]);
 
-    // Calculate today's stats
-    const todayOrdersCount = todayOrders.length;
-    const todaySalesAmount = todayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    // Calculate today's stats (excluding cancelled or rejected orders)
+    const activeTodayOrders = todayOrders.filter(o => o.status !== 'cancelled' && o.status !== 'rejected');
+    const todayOrdersCount = activeTodayOrders.length;
+    const todaySalesAmount = activeTodayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
 
-    // Calculate total revenue (all time)
-    const totalRevenue = allOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    // Calculate total revenue (only delivered orders)
+    const totalRevenue = allOrders.filter(o => o.status === 'delivered').reduce((sum, order) => sum + order.totalAmount, 0);
 
     // Calculate inventory values
     const inventoryValueWallet = allProducts.reduce((sum, p) =>
@@ -86,9 +87,6 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     const stockValueWholesaler = allProducts.reduce((sum, p) =>
       sum + (p.stock * p.price), 0
     );
-
-    // Calculate profit wallet (potential profit from current stock)
-    const profitWallet = stockValueWholesaler - inventoryValueWallet;
 
     // Count pending orders
     const pendingOrdersCount = allOrders.filter(o => o.status === 'pending').length;
@@ -112,6 +110,15 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       include: { product: true }
     });
 
+    // Calculate profit wallet (realized profit from delivered orders)
+    const deliveredOrderItems = orderItems.filter(item => {
+      const order = allOrders.find(o => o.id === item.orderId);
+      return order && order.status === 'delivered';
+    });
+    const profitWallet = deliveredOrderItems.reduce((sum, item) =>
+      sum + (item.quantity * (item.price - (item.product.costPrice || 0))), 0
+    );
+
     // Calculate top products
     const productStatsMap: Record<string, { name: string; quantity: number; revenue: number }> = {};
     orderItems.forEach(item => {
@@ -127,11 +134,11 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
-    // Calculate revenue trend
+    // Calculate revenue trend (only delivered orders)
     const revenueTrend = last7Days.map(date => {
       const dateStr = date.toISOString().split('T')[0];
       const amount = allOrders
-        .filter(o => o.createdAt.toISOString().split('T')[0] === dateStr)
+        .filter(o => o.status === 'delivered' && o.createdAt.toISOString().split('T')[0] === dateStr)
         .reduce((sum, o) => sum + o.totalAmount, 0);
       return { date: dateStr, amount };
     });
@@ -164,6 +171,13 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       profitWallet: profitWallet,
       pendingOrdersCount: pendingOrdersCount,
       pendingCreditRequestsCount: pendingCreditRequestsCount,
+
+      // Frontend compatibility mappings
+      todaysOrders: todayOrdersCount,
+      todaysRevenue: todaySalesAmount,
+      inventoryValueSupplierCost: inventoryValueWallet,
+      pendingOrders: pendingOrdersCount,
+      pendingCreditRequests: pendingCreditRequestsCount,
 
       // Richer stats for Analytics
       totalOrders: allOrders.length,

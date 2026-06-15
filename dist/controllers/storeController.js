@@ -657,18 +657,18 @@ const getMyOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             include: {
                 saleItems: {
                     include: { product: true }
-                },
-                retailerProfile: {
-                    select: {
-                        id: true,
-                        shopName: true,
-                        address: true,
-                        user: { select: { phone: true } }
-                    }
                 }
             },
             orderBy: { createdAt: 'desc' }
         });
+        const retailerIds = Array.from(new Set(sales.map(s => s.retailerId)));
+        const retailers = yield prisma_1.default.retailerProfile.findMany({
+            where: { id: { in: retailerIds } },
+            include: {
+                user: { select: { phone: true } }
+            }
+        });
+        const retailerMap = new Map(retailers.map(r => [r.id, r]));
         // 2. Fetch CustomerOrders (Gas/Other)
         const otherOrders = yield prisma_1.default.customerOrder.findMany({
             where: { consumerId: consumerProfile.id },
@@ -677,15 +677,16 @@ const getMyOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         // 3. Normalize Sales to Order Interface
         const normalizedSales = sales.map(sale => {
             var _a;
-            return ({
+            const retailerProfile = retailerMap.get(sale.retailerId);
+            return {
                 id: sale.id,
                 order_number: `ORD-${sale.createdAt.getFullYear()}-${sale.id.toString().padStart(4, '0')}`, // Generate if missing
                 status: sale.status,
                 retailer: {
                     id: sale.retailerId,
-                    name: sale.retailerProfile.shopName,
-                    location: sale.retailerProfile.address || 'Unknown Location',
-                    phone: ((_a = sale.retailerProfile.user) === null || _a === void 0 ? void 0 : _a.phone) || 'N/A'
+                    name: (retailerProfile === null || retailerProfile === void 0 ? void 0 : retailerProfile.shopName) || 'Unknown Retailer',
+                    location: (retailerProfile === null || retailerProfile === void 0 ? void 0 : retailerProfile.address) || 'Unknown Location',
+                    phone: ((_a = retailerProfile === null || retailerProfile === void 0 ? void 0 : retailerProfile.user) === null || _a === void 0 ? void 0 : _a.phone) || 'N/A'
                 },
                 items: sale.saleItems.map(item => ({
                     id: item.id,
@@ -712,7 +713,7 @@ const getMyOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 meter_id: sale.meterId,
                 rejection_reason: sale.rejectionReason,
                 cancellation_reason: sale.cancellationReason
-            });
+            };
         });
         // 4. Normalize CustomerOrders (Gas/Service)
         const normalizedOthers = otherOrders.map(order => {
@@ -1086,6 +1087,17 @@ const repayLoan = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 return res.status(400).json({ error: 'Insufficient credit wallet balance.' });
             }
         }
+        // Load custom rates outside the transaction to avoid blocking I/O operations inside DB transaction
+        let rates = { customerInterestRate: 10, retailerInterestRate: 5, wholesalerInterestRate: 8 };
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const p = path.join(__dirname, '..', 'customRates.json');
+            if (fs.existsSync(p)) {
+                rates = Object.assign(Object.assign({}, rates), JSON.parse(fs.readFileSync(p, 'utf8')));
+            }
+        }
+        catch (e) { }
         yield prisma_1.default.$transaction((prisma) => __awaiter(void 0, void 0, void 0, function* () {
             // Find the loan (ensure ID is number)
             const loan = yield prisma.loan.findUnique({ where: { id: Number(id) } });
@@ -1116,15 +1128,11 @@ const repayLoan = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                         reference: loan.id.toString()
                     }
                 });
-                // Add amount back to 'credit_wallet' (replenish limit)
+                // Track repayment transaction under 'credit_wallet' (do NOT increment limit/balance per client request)
                 const creditWallet = yield prisma.wallet.findFirst({
                     where: { consumerId: consumerProfile.id, type: 'credit_wallet' }
                 });
                 if (creditWallet) {
-                    yield prisma.wallet.update({
-                        where: { id: creditWallet.id },
-                        data: { balance: { increment: amount } }
-                    });
                     yield prisma.walletTransaction.create({
                         data: {
                             walletId: creditWallet.id,
@@ -1162,16 +1170,6 @@ const repayLoan = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 // No replenishment needed because we just used the credit funds themselves to close it.
             }
             // 5. Check if fully paid (Including Interest)
-            let rates = { customerInterestRate: 10, retailerInterestRate: 5, wholesalerInterestRate: 8 };
-            try {
-                const fs = require('fs');
-                const path = require('path');
-                const p = path.join(__dirname, '..', 'customRates.json');
-                if (fs.existsSync(p)) {
-                    rates = Object.assign(Object.assign({}, rates), JSON.parse(fs.readFileSync(p, 'utf8')));
-                }
-            }
-            catch (e) { }
             const repayments = yield prisma.walletTransaction.findMany({
                 where: {
                     reference: loan.id.toString(),
@@ -1189,7 +1187,9 @@ const repayLoan = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                     data: { status: 'repaid' }
                 });
             }
-        }));
+        }), {
+            timeout: 45000 // Increase transaction timeout to 45 seconds to prevent timeout crashes on slow DB queries / high network latency
+        });
         res.json({ success: true, message: 'Loan repayment successful' });
     }
     catch (error) {
