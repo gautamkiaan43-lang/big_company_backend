@@ -469,9 +469,26 @@ const topupGas = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 },
                 relatedEntity: { type: 'GAS_ORDER', id: order.id.toString() }
             });
+            // Trigger Gas Reward SMS Notification (CUS-SMS-006)
+            if (rewardUnits > 0) {
+                const rewards = yield prisma_1.default.gasReward.findMany({
+                    where: { consumerId: consumerProfile.id }
+                });
+                const totalRewardBalance = rewards.reduce((sum, r) => sum + r.units, 0);
+                yield emailQueue.add('gas-reward-update', {
+                    to: consumerProfile.user.phone,
+                    templateType: 'gas-reward-update', // Mapped to CUS-SMS-006
+                    data: {
+                        customer_name: consumerProfile.fullName || consumerProfile.user.name || 'Valued Customer',
+                        reward_amount: rewardUnits.toFixed(4),
+                        new_reward_balance: totalRewardBalance.toFixed(4)
+                    },
+                    relatedEntity: { type: 'GAS_ORDER', id: order.id.toString() }
+                });
+            }
         }
         catch (err) {
-            console.error('Gas recharge notification failed:', err);
+            console.error('Gas recharge notifications failed:', err);
         }
     }
     catch (error) {

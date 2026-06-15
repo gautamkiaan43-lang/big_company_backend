@@ -950,7 +950,8 @@ export const sendCustomerLinkRequest = async (req: AuthRequest, res: Response) =
         const { retailerId, message } = req.body;
 
         const consumerProfile = await prisma.consumerProfile.findUnique({
-            where: { userId: req.user!.id }
+            where: { userId: req.user!.id },
+            include: { user: true }
         });
 
         if (!consumerProfile) {
@@ -959,7 +960,8 @@ export const sendCustomerLinkRequest = async (req: AuthRequest, res: Response) =
 
         // Check if retailer exists
         const retailer = await prisma.retailerProfile.findUnique({
-            where: { id: retailerId }
+            where: { id: retailerId },
+            include: { user: true }
         });
 
         if (!retailer) {
@@ -1000,6 +1002,24 @@ export const sendCustomerLinkRequest = async (req: AuthRequest, res: Response) =
                         respondedAt: null
                     }
                 });
+
+                // Notify Retailer of New Link Request (RET-EMAIL-004)
+                if (retailer.user?.email) {
+                    const { emailQueue } = await import('../queues/email.queue');
+                    await emailQueue.add('link-request-received', {
+                        to: retailer.user.email,
+                        templateType: 'link-request-received', // Mapped to RET-EMAIL-004
+                        data: {
+                            retail_name: retailer.shopName,
+                            customer_name: consumerProfile.fullName || consumerProfile.user?.name || 'Valued Customer',
+                            customer_phone: consumerProfile.user?.phone || 'N/A',
+                            request_date: new Date().toLocaleDateString(),
+                            dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/partners`
+                        },
+                        relatedEntity: { type: 'CUSTOMER_LINK_REQUEST', id: updatedRequest.id.toString() }
+                    });
+                }
+
                 return res.json({ success: true, request: updatedRequest, message: 'Link request re-sent successfully' });
             }
         }
@@ -1012,6 +1032,23 @@ export const sendCustomerLinkRequest = async (req: AuthRequest, res: Response) =
                 message: message || null
             }
         });
+
+        // Notify Retailer of New Link Request (RET-EMAIL-004)
+        if (retailer.user?.email) {
+            const { emailQueue } = await import('../queues/email.queue');
+            await emailQueue.add('link-request-received', {
+                to: retailer.user.email,
+                templateType: 'link-request-received', // Mapped to RET-EMAIL-004
+                data: {
+                    retail_name: retailer.shopName,
+                    customer_name: consumerProfile.fullName || consumerProfile.user?.name || 'Valued Customer',
+                    customer_phone: consumerProfile.user?.phone || 'N/A',
+                    request_date: new Date().toLocaleDateString(),
+                    dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/partners`
+                },
+                relatedEntity: { type: 'CUSTOMER_LINK_REQUEST', id: linkRequest.id.toString() }
+            });
+        }
 
         res.json({ success: true, request: linkRequest, message: 'Link request sent successfully' });
     } catch (error: any) {

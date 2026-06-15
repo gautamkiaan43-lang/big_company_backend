@@ -63,7 +63,11 @@ const EVENT_MAPPINGS = [
     { slug: 'customer-credit-status', template: 'CUS-SMS-009', desc: 'Customer credit request status update' },
     { slug: 'customer-low-balance', template: 'CUS-SMS-010', desc: 'Customer low balance alert' },
     { slug: 'customer-failed-login', template: 'CUS-SMS-011', desc: 'Failed login on customer account' },
-    { slug: 'customer-account-status', template: 'CUS-SMS-012', desc: 'Customer account activation/deactivation' }
+    { slug: 'customer-account-status', template: 'CUS-SMS-012', desc: 'Customer account activation/deactivation' },
+    // System/Auth Common Events
+    { slug: 'password-reset', template: 'SYS-EMAIL-002', desc: 'Password reset temporary credentials email' },
+    { slug: 'password-reset-SMS', template: 'SYS-SMS-002', desc: 'Password reset temporary credentials SMS' },
+    { slug: 'account-action-alert', template: 'SYS-EMAIL-001', desc: 'Account activation or suspension email alert' }
 ];
 function initEventMappings() {
     return __awaiter(this, void 0, void 0, function* () {

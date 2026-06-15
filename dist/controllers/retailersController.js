@@ -471,7 +471,7 @@ const getCreditRequestsWithStats = (req, res) => __awaiter(void 0, void 0, void 
 exports.getCreditRequestsWithStats = getCreditRequestsWithStats;
 // Approve credit request
 const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     try {
         const { id } = req.params;
         const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
@@ -526,7 +526,7 @@ const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, fun
         }), {
             timeout: 20000 // Increase timeout to 20 seconds
         });
-        // 4. Trigger Wholesaler Notification (WHO-EMAIL-007)
+        // 4. Trigger Notifications (WHO-EMAIL-007 and RET-EMAIL-009)
         try {
             const wholesalerProfile = yield prisma_1.default.wholesalerProfile.findUnique({
                 where: { userId: req.user.id },
@@ -539,6 +539,11 @@ const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, fun
                     include: { user: true }
                 });
                 if (retailer) {
+                    const creditInfo = yield prisma_1.default.retailerCredit.findUnique({
+                        where: { retailerId: result.retailerId }
+                    });
+                    const currentCreditBalance = creditInfo ? creditInfo.availableCredit : result.amount;
+                    // Notify Wholesaler (WHO-EMAIL-007)
                     yield emailQueue.add('wholesaler-credit-approved-alert', {
                         to: wholesalerProfile.user.email,
                         templateType: 'wholesaler-credit-approved', // Mapped to WHO-EMAIL-007
@@ -549,15 +554,33 @@ const approveCreditRequest = (req, res) => __awaiter(void 0, void 0, void 0, fun
                             repayment_period: '30 Days',
                             due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
                             interest_rate: '5%',
+                            request_id: result.id.toString(),
+                            current_credit_balance: currentCreditBalance.toLocaleString(),
                             dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/credit`
                         },
                         relatedEntity: { type: 'CREDIT_REQUEST', id: result.id.toString() }
                     });
+                    // Notify Retailer (RET-EMAIL-009)
+                    if ((_b = retailer.user) === null || _b === void 0 ? void 0 : _b.email) {
+                        yield emailQueue.add('credit-request-approved', {
+                            to: retailer.user.email,
+                            templateType: 'credit-request-approved', // Mapped to RET-EMAIL-009
+                            data: {
+                                retail_name: retailer.shopName,
+                                approved_amount: result.amount.toLocaleString(),
+                                repayment_period: '30 Days',
+                                due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                                interest_rate: '5%',
+                                repayment_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/credit`
+                            },
+                            relatedEntity: { type: 'CREDIT_REQUEST', id: result.id.toString() }
+                        });
+                    }
                 }
             }
         }
         catch (err) {
-            console.error('Wholesaler credit notification failed:', err);
+            console.error('Credit notification failed:', err);
         }
         res.json({ success: true, creditRequest: result });
     }

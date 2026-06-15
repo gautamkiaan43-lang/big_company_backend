@@ -106,16 +106,15 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 }
             })
         ]);
-        // Calculate today's stats
-        const todayOrdersCount = todayOrders.length;
-        const todaySalesAmount = todayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-        // Calculate total revenue (all time)
-        const totalRevenue = allOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+        // Calculate today's stats (excluding cancelled or rejected orders)
+        const activeTodayOrders = todayOrders.filter(o => o.status !== 'cancelled' && o.status !== 'rejected');
+        const todayOrdersCount = activeTodayOrders.length;
+        const todaySalesAmount = activeTodayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+        // Calculate total revenue (only delivered orders)
+        const totalRevenue = allOrders.filter(o => o.status === 'delivered').reduce((sum, order) => sum + order.totalAmount, 0);
         // Calculate inventory values
         const inventoryValueWallet = allProducts.reduce((sum, p) => sum + (p.stock * (p.costPrice || 0)), 0);
         const stockValueWholesaler = allProducts.reduce((sum, p) => sum + (p.stock * p.price), 0);
-        // Calculate profit wallet (potential profit from current stock)
-        const profitWallet = stockValueWholesaler - inventoryValueWallet;
         // Count pending orders
         const pendingOrdersCount = allOrders.filter(o => o.status === 'pending').length;
         // Count pending credit requests
@@ -134,6 +133,12 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
             },
             include: { product: true }
         });
+        // Calculate profit wallet (realized profit from delivered orders)
+        const deliveredOrderItems = orderItems.filter(item => {
+            const order = allOrders.find(o => o.id === item.orderId);
+            return order && order.status === 'delivered';
+        });
+        const profitWallet = deliveredOrderItems.reduce((sum, item) => sum + (item.quantity * (item.price - (item.product.costPrice || 0))), 0);
         // Calculate top products
         const productStatsMap = {};
         orderItems.forEach(item => {
@@ -147,11 +152,11 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
         const topSellingProducts = Object.values(productStatsMap)
             .sort((a, b) => b.revenue - a.revenue)
             .slice(0, 5);
-        // Calculate revenue trend
+        // Calculate revenue trend (only delivered orders)
         const revenueTrend = last7Days.map(date => {
             const dateStr = date.toISOString().split('T')[0];
             const amount = allOrders
-                .filter(o => o.createdAt.toISOString().split('T')[0] === dateStr)
+                .filter(o => o.status === 'delivered' && o.createdAt.toISOString().split('T')[0] === dateStr)
                 .reduce((sum, o) => sum + o.totalAmount, 0);
             return { date: dateStr, amount };
         });
@@ -180,6 +185,12 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
             profitWallet: profitWallet,
             pendingOrdersCount: pendingOrdersCount,
             pendingCreditRequestsCount: pendingCreditRequestsCount,
+            // Frontend compatibility mappings
+            todaysOrders: todayOrdersCount,
+            todaysRevenue: todaySalesAmount,
+            inventoryValueSupplierCost: inventoryValueWallet,
+            pendingOrders: pendingOrdersCount,
+            pendingCreditRequests: pendingCreditRequestsCount,
             // Richer stats for Analytics
             totalOrders: allOrders.length,
             totalProducts: allProducts.length,
@@ -749,6 +760,7 @@ const confirmOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             return res.status(400).json({ success: false, error: `Cannot confirm order with status: ${order.status}` });
         }
         const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
             // 1. Get order items with product info
             const orderWithItems = yield tx.order.findUnique({
                 where: { id: Number(id) },
@@ -764,10 +776,40 @@ const confirmOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     throw new Error(`Insufficient stock for product: ${item.product.name}. Available: ${item.product.stock}, Required: ${item.quantity}`);
                 }
                 // Decrement wholesaler's stock
-                yield tx.product.update({
+                const updatedProduct = yield tx.product.update({
                     where: { id: item.productId },
                     data: { stock: { decrement: item.quantity } }
                 });
+                // Trigger Wholesaler Low/Out of Stock Alert (WHO-EMAIL-013/014)
+                if ((_a = wholesalerProfile.user) === null || _a === void 0 ? void 0 : _a.email) {
+                    const threshold = updatedProduct.lowStockThreshold || 10;
+                    if (updatedProduct.stock <= 0) {
+                        yield email_queue_1.emailQueue.add('wholesaler-out-of-stock-alert', {
+                            to: wholesalerProfile.user.email,
+                            templateType: 'wholesaler-out-of-stock', // Mapped to WHO-EMAIL-014
+                            data: {
+                                wholesaler_name: wholesalerProfile.companyName,
+                                product: updatedProduct.name,
+                                restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/inventory`
+                            },
+                            relatedEntity: { type: 'PRODUCT', id: updatedProduct.id.toString() }
+                        });
+                    }
+                    else if (updatedProduct.stock <= threshold) {
+                        yield email_queue_1.emailQueue.add('wholesaler-low-stock-alert', {
+                            to: wholesalerProfile.user.email,
+                            templateType: 'wholesaler-low-stock', // Mapped to WHO-EMAIL-013
+                            data: {
+                                wholesaler_name: wholesalerProfile.companyName,
+                                product: updatedProduct.name,
+                                remaining_quantity: updatedProduct.stock,
+                                minimum_required: threshold,
+                                restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/inventory`
+                            },
+                            relatedEntity: { type: 'PRODUCT', id: updatedProduct.id.toString() }
+                        });
+                    }
+                }
             }
             // 3. Update order status
             const updatedOrder = yield tx.order.update({

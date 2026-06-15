@@ -1211,9 +1211,16 @@ export const updateRetailerStatus = async (req: AuthRequest, res: Response) => {
     if (updatedUser.email) {
       await emailQueue.add('account-action-alert', {
         to: updatedUser.email,
-        subject: newStatus ? '✅ Account Reactivated' : '🚨 Account Suspension Notice',
-        html: TemplateService.getAccountActionTemplate(newStatus ? 'ACTIVATED' : 'SUSPENDED'),
-        templateType: 'ACCOUNT_ACTION_ALERT'
+        templateType: 'account-action-alert', // Mapped to SYS-EMAIL-001
+        data: {
+          action: newStatus ? 'Reactivated' : 'Suspended',
+          status: newStatus ? 'activated' : 'suspended',
+          date: new Date().toLocaleDateString(),
+          reason: newStatus 
+            ? 'Your account has been reactivated by the system administrator.' 
+            : 'Your account has been suspended by the system administrator.'
+        },
+        relatedEntity: { type: 'USER', id: updatedUser.id.toString() }
       });
     }
 
@@ -1260,9 +1267,16 @@ export const updateWholesalerStatus = async (req: AuthRequest, res: Response) =>
     if (updatedUser.email) {
       await emailQueue.add('account-action-alert', {
         to: updatedUser.email,
-        subject: newStatus ? '✅ Account Reactivated' : '🚨 Account Suspension Notice',
-        html: TemplateService.getAccountActionTemplate(newStatus ? 'ACTIVATED' : 'SUSPENDED'),
-        templateType: 'ACCOUNT_ACTION_ALERT'
+        templateType: 'account-action-alert', // Mapped to SYS-EMAIL-001
+        data: {
+          action: newStatus ? 'Reactivated' : 'Suspended',
+          status: newStatus ? 'activated' : 'suspended',
+          date: new Date().toLocaleDateString(),
+          reason: newStatus 
+            ? 'Your account has been reactivated by the system administrator.' 
+            : 'Your account has been suspended by the system administrator.'
+        },
+        relatedEntity: { type: 'USER', id: updatedUser.id.toString() }
       });
     }
 

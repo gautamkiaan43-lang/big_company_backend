@@ -379,9 +379,14 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 if (product.stock <= threshold && ((_c = (_b = product.retailerProfile) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.email)) {
                     yield email_queue_1.emailQueue.add('low-stock-alert', {
                         to: product.retailerProfile.user.email,
-                        subject: `⚠️ Low Stock Alert: ${product.name}`,
-                        html: template_service_1.TemplateService.getLowStockTemplate(product.name, product.stock, threshold),
-                        templateType: 'RETAILER_LOW_STOCK',
+                        templateType: 'low-stock', // Mapped to RET-EMAIL-013
+                        data: {
+                            retail_name: product.retailerProfile.shopName,
+                            product: product.name,
+                            remaining_quantity: product.stock,
+                            minimum_required: threshold,
+                            restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/inventory`
+                        },
                         relatedEntity: { type: 'PRODUCT', id: product.id.toString() }
                     });
                 }

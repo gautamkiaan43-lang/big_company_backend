@@ -70,6 +70,22 @@ export const processScheduledTask = async (jobName: string) => {
         }
       });
     }
+
+    console.log('🏪 [Scheduler] Processing Wholesaler Daily Reports...');
+    const wholesalers = await prisma.wholesalerProfile.findMany({ include: { user: true } });
+    for (const wholesaler of wholesalers) {
+      if (!wholesaler.user?.email) continue;
+
+      const reportData = await ReportService.getWholesalerDailyReport(wholesaler.id);
+      await emailQueue.add('wholesaler-daily-report', {
+        to: wholesaler.user.email,
+        templateType: 'wholesaler-daily-report', // Mapped to WHO-EMAIL-002
+        data: {
+          wholesaler_name: wholesaler.companyName,
+          ...reportData
+        }
+      });
+    }
   }
 
   if (jobName === 'pending-order-watcher') {
@@ -94,6 +110,69 @@ export const processScheduledTask = async (jobName: string) => {
       } else {
         console.warn(`⚠️ [Scheduler] Cannot send pending alert for Order #${order.id}: Retailer has no email.`);
       }
+
+      // Also notify Wholesaler of pending order (WHO-EMAIL-017)
+      try {
+        const wholesaler = await prisma.wholesalerProfile.findUnique({
+          where: { id: order.wholesalerId },
+          include: { user: true }
+        });
+        if (wholesaler?.user?.email) {
+          await emailQueue.add('wholesaler-pending-alert', {
+            to: wholesaler.user.email,
+            templateType: 'wholesaler-pending-alert', // Mapped to WHO-EMAIL-017
+            data: {
+              wholesaler_name: wholesaler.companyName,
+              reference_id: order.id.toString(),
+              request_type: 'Order Request',
+              pending_duration: '20+ minutes',
+              status: order.status,
+              dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/orders`
+            },
+            relatedEntity: { type: 'ORDER', id: order.id.toString() }
+          });
+        }
+      } catch (err: any) {
+        console.error(`Failed to trigger wholesaler pending order alert:`, err.message);
+      }
+    }
+
+    // Also check and alert on pending credit requests older than 20 minutes
+    try {
+      const threshold = new Date(new Date().getTime() - 20 * 60000);
+      const pendingCredits = await prisma.creditRequest.findMany({
+        where: {
+          status: 'pending',
+          createdAt: { lte: threshold }
+        },
+        include: {
+          retailerProfile: true
+        }
+      });
+
+      for (const credit of pendingCredits) {
+        const wholesaler = await prisma.wholesalerProfile.findFirst({
+          where: { id: credit.retailerProfile.linkedWholesalerId || 0 },
+          include: { user: true }
+        });
+        if (wholesaler?.user?.email) {
+          await emailQueue.add('wholesaler-pending-alert', {
+            to: wholesaler.user.email,
+            templateType: 'wholesaler-pending-alert', // Mapped to WHO-EMAIL-017
+            data: {
+              wholesaler_name: wholesaler.companyName,
+              reference_id: credit.id.toString(),
+              request_type: 'Credit Request',
+              pending_duration: '20+ minutes',
+              status: credit.status,
+              dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/credit`
+            },
+            relatedEntity: { type: 'CREDIT_REQUEST', id: credit.id.toString() }
+          });
+        }
+      }
+    } catch (err: any) {
+      console.error(`Failed to trigger wholesaler pending credit alerts:`, err.message);
     }
   }
 
@@ -110,9 +189,28 @@ export const processScheduledTask = async (jobName: string) => {
       if (parseFloat(profitData.transfer_amount.replace(/,/g, '')) > 0) {
         await emailQueue.add('monthly-profit-report', {
           to: retailer.user.email,
-          templateType: 'monthly-profit-transfer', // Mapped to RET-EMAIL-007
+          templateType: 'monthly-profit-report', // Mapped to RET-EMAIL-007
           data: {
             retail_name: retailer.shopName,
+            ...profitData
+          }
+        });
+      }
+    }
+
+    console.log('💰 [Scheduler] Generating Wholesaler Monthly Profit Transfer Reports...');
+    const wholesalers = await prisma.wholesalerProfile.findMany({ include: { user: true } });
+    for (const wholesaler of wholesalers) {
+      if (!wholesaler.user?.email) continue;
+
+      const profitData = await ReportService.getWholesalerMonthlyReport(wholesaler.id);
+
+      if (parseFloat(profitData.transfer_amount.replace(/,/g, '')) > 0) {
+        await emailQueue.add('wholesaler-monthly-profit', {
+          to: wholesaler.user.email,
+          templateType: 'wholesaler-monthly-profit', // Mapped to WHO-EMAIL-011
+          data: {
+            wholesaler_name: wholesaler.companyName,
             ...profitData
           }
         });

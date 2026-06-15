@@ -292,10 +292,10 @@ const createSupplier = (req, res) => __awaiter(void 0, void 0, void 0, function*
                         wholesaler_name: wholesalerProfileFull.companyName,
                         supplier_name: name,
                         contact_person: contact_person || 'N/A',
-                        phone: phone || 'N/A',
-                        email: email || 'N/A',
+                        supplier_phone: phone || 'N/A',
+                        supplier_email: email || 'N/A',
                         category: type || 'General',
-                        date_added: new Date().toLocaleDateString(),
+                        created_date: new Date().toLocaleDateString(),
                         dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/management/suppliers`
                     },
                     relatedEntity: { type: 'SUPPLIER', id: supplier.id.toString() }

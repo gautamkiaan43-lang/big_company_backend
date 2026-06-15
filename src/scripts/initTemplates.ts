@@ -890,21 +890,71 @@ const CUSTOMER_SMS_TEMPLATES = [
     name: 'CUS-SMS-012',
     subject: 'Activated or Deactivated Account Information',
     description: 'Triggered when customer account status changes',
-    content: 'Hello {{customer_name}}, your account has been {{status}} on {{date}}. Reason/Note: {{reason}}. for support call: +250788541239.'
+  }
+];
+
+const SYSTEM_TEMPLATES = [
+  {
+    name: 'SYS-EMAIL-001',
+    subject: 'Account Action Alert - {{action}}',
+    description: 'Triggered when retailer or wholesaler account status changes',
+    content: `
+      <h2>Account Status Notification</h2>
+      <p>Hello,</p>
+      <p>This is an official notification regarding your BIG Energy Platform account status.</p>
+      <p>Your account has been <strong>{{status}}</strong> by the system administrator.</p>
+      <p><strong>Details:</strong></p>
+      <ul>
+        <li>Action: {{status}}</li>
+        <li>Date: {{date}}</li>
+        <li>Reason: {{reason}}</li>
+      </ul>
+      <p>If you did not request this or believe it is an error, please contact support immediately.</p>
+      <p>Regards,<br/>
+      Big Innovation Group Ltd<br/>
+      +250788541239<br/>
+      Info@big.co.rw</p>
+    `
+  },
+  {
+    name: 'SYS-EMAIL-002',
+    subject: 'Password Reset Request',
+    description: 'Triggered on password reset request',
+    content: `
+      <h2>Password Reset Request</h2>
+      <p>Hello,</p>
+      <p>We received a request to reset your password. A temporary password has been generated for your account:</p>
+      <div style="background-color: #f1f5f9; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0;">
+        <code style="font-size: 20px; font-weight: bold; color: #0f766e; letter-spacing: 1px;">{{temp_password}}</code>
+      </div>
+      <p style="color: #dc2626; font-size: 14px;"><strong>Important:</strong> You will be required to change this password immediately upon logging in.</p>
+      <p>If you did not request this, please ignore this email or contact support.</p>
+      <p>Regards,<br/>
+      Big Innovation Group Ltd<br/>
+      +250788541239<br/>
+      Info@big.co.rw</p>
+    `
+  },
+  {
+    name: 'SYS-SMS-002',
+    subject: 'Password Reset SMS',
+    description: 'Triggered on password reset request via SMS',
+    content: 'Your temporary password is: {{temp_password}}. Please log in and change it immediately. Support: +250788541239.'
   }
 ];
 
 async function initTemplates() {
   console.log('🚀 Initializing BIG Energy Email & SMS Templates...');
   
-  const allTemplates = [...RETAILER_TEMPLATES, ...WHOLESALER_TEMPLATES, ...CUSTOMER_SMS_TEMPLATES];
+  const allTemplates = [...RETAILER_TEMPLATES, ...WHOLESALER_TEMPLATES, ...CUSTOMER_SMS_TEMPLATES, ...SYSTEM_TEMPLATES];
 
   for (const templateData of allTemplates) {
     try {
       // Determine channel and portal based on name prefix if not explicitly provided
       const channel = templateData.name.includes('SMS') ? 'SMS' : 'EMAIL';
       const portal = templateData.name.startsWith('RET') ? 'RETAILER' : 
-                     templateData.name.startsWith('WHO') ? 'WHOLESALER' : 'CUSTOMER';
+                     templateData.name.startsWith('WHO') ? 'WHOLESALER' : 
+                     templateData.name.startsWith('SYS') ? 'SYSTEM' : 'CUSTOMER';
 
       await prisma.emailTemplate.upsert({
         where: { name: templateData.name },

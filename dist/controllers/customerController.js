@@ -911,17 +911,20 @@ exports.getAvailableRetailers = getAvailableRetailers;
 // NEW RULE: Customer can send requests to MULTIPLE retailers
 // Each retailer has independent approval status
 const sendCustomerLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d, _e, _f;
     try {
         const { retailerId, message } = req.body;
         const consumerProfile = yield prisma_1.default.consumerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!consumerProfile) {
             return res.status(404).json({ success: false, error: 'Consumer profile not found' });
         }
         // Check if retailer exists
         const retailer = yield prisma_1.default.retailerProfile.findUnique({
-            where: { id: retailerId }
+            where: { id: retailerId },
+            include: { user: true }
         });
         if (!retailer) {
             return res.status(404).json({ success: false, error: 'Retailer not found' });
@@ -959,6 +962,22 @@ const sendCustomerLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, 
                         respondedAt: null
                     }
                 });
+                // Notify Retailer of New Link Request (RET-EMAIL-004)
+                if ((_a = retailer.user) === null || _a === void 0 ? void 0 : _a.email) {
+                    const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+                    yield emailQueue.add('link-request-received', {
+                        to: retailer.user.email,
+                        templateType: 'link-request-received', // Mapped to RET-EMAIL-004
+                        data: {
+                            retail_name: retailer.shopName,
+                            customer_name: consumerProfile.fullName || ((_b = consumerProfile.user) === null || _b === void 0 ? void 0 : _b.name) || 'Valued Customer',
+                            customer_phone: ((_c = consumerProfile.user) === null || _c === void 0 ? void 0 : _c.phone) || 'N/A',
+                            request_date: new Date().toLocaleDateString(),
+                            dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/partners`
+                        },
+                        relatedEntity: { type: 'CUSTOMER_LINK_REQUEST', id: updatedRequest.id.toString() }
+                    });
+                }
                 return res.json({ success: true, request: updatedRequest, message: 'Link request re-sent successfully' });
             }
         }
@@ -970,6 +989,22 @@ const sendCustomerLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, 
                 message: message || null
             }
         });
+        // Notify Retailer of New Link Request (RET-EMAIL-004)
+        if ((_d = retailer.user) === null || _d === void 0 ? void 0 : _d.email) {
+            const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+            yield emailQueue.add('link-request-received', {
+                to: retailer.user.email,
+                templateType: 'link-request-received', // Mapped to RET-EMAIL-004
+                data: {
+                    retail_name: retailer.shopName,
+                    customer_name: consumerProfile.fullName || ((_e = consumerProfile.user) === null || _e === void 0 ? void 0 : _e.name) || 'Valued Customer',
+                    customer_phone: ((_f = consumerProfile.user) === null || _f === void 0 ? void 0 : _f.phone) || 'N/A',
+                    request_date: new Date().toLocaleDateString(),
+                    dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/partners`
+                },
+                relatedEntity: { type: 'CUSTOMER_LINK_REQUEST', id: linkRequest.id.toString() }
+            });
+        }
         res.json({ success: true, request: linkRequest, message: 'Link request sent successfully' });
     }
     catch (error) {

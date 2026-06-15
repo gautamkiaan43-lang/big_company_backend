@@ -463,6 +463,24 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
                     },
                     relatedEntity: { type: 'GAS_RECHARGE', id: String(txRecord.id) }
                 });
+                // Trigger Gas Reward SMS Notification (CUS-SMS-006)
+                const rewardUnits = Number((units * 0.1).toFixed(4));
+                if (rewardUnits > 0) {
+                    const rewards = yield prisma_1.default.gasReward.findMany({
+                        where: { consumerId: consumerProfileId }
+                    });
+                    const totalRewardBalance = rewards.reduce((sum, r) => sum + r.units, 0);
+                    yield emailQueue.add('gas-reward-update', {
+                        to: smsRecipient,
+                        templateType: 'gas-reward-update', // Mapped to CUS-SMS-006
+                        data: {
+                            customer_name: customerName,
+                            reward_amount: rewardUnits.toFixed(4),
+                            new_reward_balance: totalRewardBalance.toFixed(4)
+                        },
+                        relatedEntity: { type: 'GAS_RECHARGE', id: String(txRecord.id) }
+                    });
+                }
             }
         }
         catch (smsErr) {

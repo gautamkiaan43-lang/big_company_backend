@@ -2951,7 +2951,8 @@ export const approveCustomerLinkRequest = async (req: AuthRequest, res: Response
     const { requestId } = req.params;
 
     const retailerProfile = await prisma.retailerProfile.findUnique({
-      where: { userId: req.user!.id }
+      where: { userId: req.user!.id },
+      include: { user: true }
     });
 
     if (!retailerProfile) {
@@ -2983,6 +2984,21 @@ export const approveCustomerLinkRequest = async (req: AuthRequest, res: Response
         respondedAt: new Date()
       }
     });
+
+    // Notify Retailer of Approval (RET-EMAIL-005)
+    if (retailerProfile.user?.email) {
+      const { emailQueue } = await import('../queues/email.queue');
+      await emailQueue.add('link-request-approved', {
+        to: retailerProfile.user.email,
+        templateType: 'link-request-approved', // Mapped to RET-EMAIL-005
+        data: {
+          retail_name: retailerProfile.shopName,
+          customer_name: request.customer.fullName || 'Valued Customer',
+          approval_date: new Date().toLocaleDateString()
+        },
+        relatedEntity: { type: 'CUSTOMER_LINK_REQUEST', id: request.id.toString() }
+      });
+    }
 
     res.json({ success: true, message: 'Customer link request approved successfully' });
   } catch (error: any) {

@@ -234,11 +234,11 @@ export const login = async (req: Request, res: Response) => {
         templateType: 'suspicious-activity', // Mapped to RET-EMAIL-015
         data: {
           retail_name: user.name || 'Retailer',
-          activity_type: 'New Device Login',
-          activity_time: new Date().toLocaleString(),
+          activity: 'New Device Login',
+          time: new Date().toLocaleString(),
           location: 'Kigali, Rwanda (Approx)',
           device: req.headers['user-agent'] || 'Unknown Device',
-          action_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/security`
+          security_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/security`
         },
         relatedEntity: { type: 'USER', id: user.id.toString() }
       });
@@ -582,16 +582,19 @@ export const forgotPassword = async (req: Request, res: Response) => {
       if (deliveryChannel === 'email') {
         await emailQueue.add('password-reset', {
           to: user.email,
-          subject,
-          html: htmlContent,
-          templateType: 'password-reset',
+          templateType: 'password-reset', // Mapped to SYS-EMAIL-002
+          data: {
+            temp_password: tempPass
+          },
           relatedEntity: { type: 'USER', id: user.id.toString() }
         });
       } else {
         await emailQueue.add('password-reset-SMS', {
           to: user.phone,
-          templateType: 'password-reset-SMS',
-          html: `Your temporary password is: ${tempPass}. Please log in and change it immediately.`,
+          templateType: 'password-reset-SMS', // Mapped to SYS-SMS-002
+          data: {
+            temp_password: tempPass
+          },
           relatedEntity: { type: 'USER', id: user.id.toString() }
         });
       }

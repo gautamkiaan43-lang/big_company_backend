@@ -376,9 +376,14 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         if (product.stock <= threshold && product.retailerProfile?.user?.email) {
           await emailQueue.add('low-stock-alert', {
             to: product.retailerProfile.user.email,
-            subject: `⚠️ Low Stock Alert: ${product.name}`,
-            html: TemplateService.getLowStockTemplate(product.name, product.stock, threshold),
-            templateType: 'RETAILER_LOW_STOCK',
+            templateType: 'low-stock', // Mapped to RET-EMAIL-013
+            data: {
+              retail_name: product.retailerProfile.shopName,
+              product: product.name,
+              remaining_quantity: product.stock,
+              minimum_required: threshold,
+              restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/inventory`
+            },
             relatedEntity: { type: 'PRODUCT', id: product.id.toString() }
           });
         }

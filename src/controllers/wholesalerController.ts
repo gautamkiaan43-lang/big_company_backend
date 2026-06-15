@@ -837,10 +837,40 @@ export const confirmOrder = async (req: AuthRequest, res: Response) => {
         }
 
         // Decrement wholesaler's stock
-        await tx.product.update({
+        const updatedProduct = await tx.product.update({
           where: { id: item.productId },
           data: { stock: { decrement: item.quantity } }
         });
+
+        // Trigger Wholesaler Low/Out of Stock Alert (WHO-EMAIL-013/014)
+        if (wholesalerProfile.user?.email) {
+          const threshold = updatedProduct.lowStockThreshold || 10;
+          if (updatedProduct.stock <= 0) {
+            await emailQueue.add('wholesaler-out-of-stock-alert', {
+              to: wholesalerProfile.user.email,
+              templateType: 'wholesaler-out-of-stock', // Mapped to WHO-EMAIL-014
+              data: {
+                wholesaler_name: wholesalerProfile.companyName,
+                product: updatedProduct.name,
+                restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/inventory`
+              },
+              relatedEntity: { type: 'PRODUCT', id: updatedProduct.id.toString() }
+            });
+          } else if (updatedProduct.stock <= threshold) {
+            await emailQueue.add('wholesaler-low-stock-alert', {
+              to: wholesalerProfile.user.email,
+              templateType: 'wholesaler-low-stock', // Mapped to WHO-EMAIL-013
+              data: {
+                wholesaler_name: wholesalerProfile.companyName,
+                product: updatedProduct.name,
+                remaining_quantity: updatedProduct.stock,
+                minimum_required: threshold,
+                restock_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/inventory`
+              },
+              relatedEntity: { type: 'PRODUCT', id: updatedProduct.id.toString() }
+            });
+          }
+        }
       }
 
       // 3. Update order status

@@ -232,8 +232,8 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 lowStockItems: lowStockItems, // Array
                 lowStockCount, // Number
                 // Wallets
-                capitalWallet,
-                profitWallet, // Keep for backward compatibility (Unknown if fontend relies on it)
+                capitalWallet: retailerProfile.walletBalance,
+                profitWallet: totalProfit, // Keep for backward compatibility (now holds realized profit)
                 walletBalance: retailerProfile.walletBalance,
                 creditLimit: retailerProfile.creditLimit,
                 // Today
@@ -1837,8 +1837,7 @@ const makeRepayment = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 yield prisma.retailerCredit.update({
                     where: { retailerId: retailerProfile.id },
                     data: {
-                        usedCredit: { decrement: amount },
-                        availableCredit: { increment: amount }
+                        usedCredit: { decrement: amount }
                     }
                 });
             }
@@ -1909,8 +1908,7 @@ const payCredit = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 yield tx.retailerCredit.update({
                     where: { retailerId: retailerProfile.id },
                     data: {
-                        usedCredit: { decrement: amount },
-                        availableCredit: { increment: amount }
+                        usedCredit: { decrement: amount }
                     }
                 });
             }
@@ -2716,10 +2714,12 @@ const getCustomerLinkRequests = (req, res) => __awaiter(void 0, void 0, void 0, 
 exports.getCustomerLinkRequests = getCustomerLinkRequests;
 // Approve a customer link request
 const approveCustomerLinkRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { requestId } = req.params;
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { user: true }
         });
         if (!retailerProfile) {
             return res.status(404).json({ success: false, error: 'Retailer profile not found' });
@@ -2746,6 +2746,20 @@ const approveCustomerLinkRequest = (req, res) => __awaiter(void 0, void 0, void 
                 respondedAt: new Date()
             }
         });
+        // Notify Retailer of Approval (RET-EMAIL-005)
+        if ((_a = retailerProfile.user) === null || _a === void 0 ? void 0 : _a.email) {
+            const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+            yield emailQueue.add('link-request-approved', {
+                to: retailerProfile.user.email,
+                templateType: 'link-request-approved', // Mapped to RET-EMAIL-005
+                data: {
+                    retail_name: retailerProfile.shopName,
+                    customer_name: request.customer.fullName || 'Valued Customer',
+                    approval_date: new Date().toLocaleDateString()
+                },
+                relatedEntity: { type: 'CUSTOMER_LINK_REQUEST', id: request.id.toString() }
+            });
+        }
         res.json({ success: true, message: 'Customer link request approved successfully' });
     }
     catch (error) {

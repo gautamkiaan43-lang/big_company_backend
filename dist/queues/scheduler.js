@@ -78,7 +78,7 @@ exports.initScheduler = initScheduler;
  * Logic to process scheduled tasks when they are triggered by the worker
  */
 const processScheduledTask = (jobName) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const prisma = new (yield Promise.resolve().then(() => __importStar(require('@prisma/client')))).PrismaClient();
     if (jobName === 'daily-performance-report') {
         console.log('📊 [Scheduler] Generating Admin Daily Report...');
@@ -103,12 +103,24 @@ const processScheduledTask = (jobName) => __awaiter(void 0, void 0, void 0, func
                 data: Object.assign({ retail_name: retailer.shopName }, reportData)
             });
         }
+        console.log('🏪 [Scheduler] Processing Wholesaler Daily Reports...');
+        const wholesalers = yield prisma.wholesalerProfile.findMany({ include: { user: true } });
+        for (const wholesaler of wholesalers) {
+            if (!((_b = wholesaler.user) === null || _b === void 0 ? void 0 : _b.email))
+                continue;
+            const reportData = yield report_service_1.ReportService.getWholesalerDailyReport(wholesaler.id);
+            yield email_queue_1.emailQueue.add('wholesaler-daily-report', {
+                to: wholesaler.user.email,
+                templateType: 'wholesaler-daily-report', // Mapped to WHO-EMAIL-002
+                data: Object.assign({ wholesaler_name: wholesaler.companyName }, reportData)
+            });
+        }
     }
     if (jobName === 'pending-order-watcher') {
         console.log('⏳ [Scheduler] Checking for pending orders (>20 mins)...');
         const orders = yield report_service_1.ReportService.getPendingOrdersOlderThan(20);
         for (const order of orders) {
-            const email = (_c = (_b = order.retailerProfile) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.email;
+            const email = (_d = (_c = order.retailerProfile) === null || _c === void 0 ? void 0 : _c.user) === null || _d === void 0 ? void 0 : _d.email;
             if (email) {
                 yield email_queue_1.emailQueue.add('pending-order-alert', {
                     to: email,
@@ -126,21 +138,97 @@ const processScheduledTask = (jobName) => __awaiter(void 0, void 0, void 0, func
             else {
                 console.warn(`⚠️ [Scheduler] Cannot send pending alert for Order #${order.id}: Retailer has no email.`);
             }
+            // Also notify Wholesaler of pending order (WHO-EMAIL-017)
+            try {
+                const wholesaler = yield prisma.wholesalerProfile.findUnique({
+                    where: { id: order.wholesalerId },
+                    include: { user: true }
+                });
+                if ((_e = wholesaler === null || wholesaler === void 0 ? void 0 : wholesaler.user) === null || _e === void 0 ? void 0 : _e.email) {
+                    yield email_queue_1.emailQueue.add('wholesaler-pending-alert', {
+                        to: wholesaler.user.email,
+                        templateType: 'wholesaler-pending-alert', // Mapped to WHO-EMAIL-017
+                        data: {
+                            wholesaler_name: wholesaler.companyName,
+                            reference_id: order.id.toString(),
+                            request_type: 'Order Request',
+                            pending_duration: '20+ minutes',
+                            status: order.status,
+                            dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/orders`
+                        },
+                        relatedEntity: { type: 'ORDER', id: order.id.toString() }
+                    });
+                }
+            }
+            catch (err) {
+                console.error(`Failed to trigger wholesaler pending order alert:`, err.message);
+            }
+        }
+        // Also check and alert on pending credit requests older than 20 minutes
+        try {
+            const threshold = new Date(new Date().getTime() - 20 * 60000);
+            const pendingCredits = yield prisma.creditRequest.findMany({
+                where: {
+                    status: 'pending',
+                    createdAt: { lte: threshold }
+                },
+                include: {
+                    retailerProfile: true
+                }
+            });
+            for (const credit of pendingCredits) {
+                const wholesaler = yield prisma.wholesalerProfile.findFirst({
+                    where: { id: credit.retailerProfile.linkedWholesalerId || 0 },
+                    include: { user: true }
+                });
+                if ((_f = wholesaler === null || wholesaler === void 0 ? void 0 : wholesaler.user) === null || _f === void 0 ? void 0 : _f.email) {
+                    yield email_queue_1.emailQueue.add('wholesaler-pending-alert', {
+                        to: wholesaler.user.email,
+                        templateType: 'wholesaler-pending-alert', // Mapped to WHO-EMAIL-017
+                        data: {
+                            wholesaler_name: wholesaler.companyName,
+                            reference_id: credit.id.toString(),
+                            request_type: 'Credit Request',
+                            pending_duration: '20+ minutes',
+                            status: credit.status,
+                            dashboard_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/credit`
+                        },
+                        relatedEntity: { type: 'CREDIT_REQUEST', id: credit.id.toString() }
+                    });
+                }
+            }
+        }
+        catch (err) {
+            console.error(`Failed to trigger wholesaler pending credit alerts:`, err.message);
         }
     }
     if (jobName === 'monthly-profit-report') {
         console.log('💰 [Scheduler] Generating Monthly Profit Transfer Reports...');
         const retailers = yield prisma.retailerProfile.findMany({ include: { user: true } });
         for (const retailer of retailers) {
-            if (!((_d = retailer.user) === null || _d === void 0 ? void 0 : _d.email))
+            if (!((_g = retailer.user) === null || _g === void 0 ? void 0 : _g.email))
                 continue;
             const profitData = yield report_service_1.ReportService.getRetailerMonthlyReport(retailer.id);
             // Only send if there was profit
             if (parseFloat(profitData.transfer_amount.replace(/,/g, '')) > 0) {
                 yield email_queue_1.emailQueue.add('monthly-profit-report', {
                     to: retailer.user.email,
-                    templateType: 'monthly-profit-transfer', // Mapped to RET-EMAIL-007
+                    templateType: 'monthly-profit-report', // Mapped to RET-EMAIL-007
                     data: Object.assign({ retail_name: retailer.shopName }, profitData)
+                });
+            }
+        }
+        console.log('💰 [Scheduler] Generating Wholesaler Monthly Profit Transfer Reports...');
+        const wholesalers = yield prisma.wholesalerProfile.findMany({ include: { user: true } });
+        for (const wholesaler of wholesalers) {
+            if (!((_h = wholesaler.user) === null || _h === void 0 ? void 0 : _h.email))
+                continue;
+            const profitData = yield report_service_1.ReportService.getWholesalerMonthlyReport(wholesaler.id);
+            if (parseFloat(profitData.transfer_amount.replace(/,/g, '')) > 0) {
+                yield email_queue_1.emailQueue.add('wholesaler-monthly-profit', {
+                    to: wholesaler.user.email,
+                    templateType: 'wholesaler-monthly-profit', // Mapped to WHO-EMAIL-011
+                    data: Object.assign({ wholesaler_name: wholesaler.companyName }, profitData)
                 });
             }
         }

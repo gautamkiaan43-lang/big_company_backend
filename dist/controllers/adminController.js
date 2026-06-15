@@ -54,7 +54,6 @@ const crypto_1 = __importDefault(require("crypto"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const email_queue_1 = require("../queues/email.queue");
-const template_service_1 = require("../services/template.service");
 const email_validator_1 = require("../utils/email-validator");
 // Get detailed dashboard stats
 const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -69,15 +68,20 @@ const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const customerLast24h = yield prisma_1.default.consumerProfile.count({ where: { user: { createdAt: { gte: last24h } } } });
         const customerLast7d = yield prisma_1.default.consumerProfile.count({ where: { user: { createdAt: { gte: last7d } } } });
         const customerLast30d = yield prisma_1.default.consumerProfile.count({ where: { user: { createdAt: { gte: last30d } } } });
-        // 2. Orders (Sales)
-        const sales = yield prisma_1.default.sale.findMany();
-        const orderTotal = sales.length;
-        const orderPending = sales.filter(s => s.status === 'pending').length;
-        const orderProcessing = sales.filter(s => s.status === 'processing').length;
-        const orderDelivered = sales.filter(s => s.status === 'completed' || s.status === 'delivered').length;
-        const orderCancelled = sales.filter(s => s.status === 'cancelled').length;
-        const totalRevenue = Math.round(sales.reduce((acc, s) => acc + s.totalAmount, 0));
-        const todayOrders = sales.filter(s => s.createdAt >= todayStart).length;
+        // 2. Orders & Revenue (Combine B2C Sales and B2B Wholesaler Orders)
+        const [sales, wholesaleOrders] = yield Promise.all([
+            prisma_1.default.sale.findMany(),
+            prisma_1.default.order.findMany()
+        ]);
+        const orderTotal = sales.length + wholesaleOrders.length;
+        const orderPending = sales.filter(s => s.status === 'pending').length + wholesaleOrders.filter(o => o.status === 'pending').length;
+        const orderProcessing = sales.filter(s => s.status === 'processing').length + wholesaleOrders.filter(o => o.status === 'processing').length;
+        const orderDelivered = sales.filter(s => s.status === 'completed' || s.status === 'delivered').length + wholesaleOrders.filter(o => o.status === 'delivered').length;
+        const orderCancelled = sales.filter(s => s.status === 'cancelled').length + wholesaleOrders.filter(o => o.status === 'cancelled').length;
+        const salesRevenue = sales.reduce((acc, s) => acc + s.totalAmount, 0);
+        const wholesaleRevenue = wholesaleOrders.filter(o => o.status === 'delivered').reduce((acc, o) => acc + o.totalAmount, 0);
+        const totalRevenue = Math.round(salesRevenue + wholesaleRevenue);
+        const todayOrders = sales.filter(s => s.createdAt >= todayStart).length + wholesaleOrders.filter(o => o.createdAt >= todayStart).length;
         // 3. Transactions (using WalletTransaction)
         const txs = yield prisma_1.default.walletTransaction.findMany({ where: { createdAt: { gte: last30d } } });
         const txTotal = yield prisma_1.default.walletTransaction.count();
@@ -108,6 +112,17 @@ const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const retailerVerified = yield prisma_1.default.retailerProfile.count({ where: { isVerified: true } });
         const wholesalerTotal = yield prisma_1.default.wholesalerProfile.count();
         const wholesalerActive = yield prisma_1.default.wholesalerProfile.count({ where: { user: { isActive: true } } });
+        // 8. System-wide Wallets (Consumer & Retailer cash wallet balances)
+        const consumerWalletSum = yield prisma_1.default.consumerProfile.aggregate({ _sum: { walletBalance: true } });
+        const retailerWalletSum = yield prisma_1.default.retailerProfile.aggregate({ _sum: { walletBalance: true } });
+        const totalWalletBalance = Math.round((consumerWalletSum._sum.walletBalance || 0) + (retailerWalletSum._sum.walletBalance || 0));
+        // 9. System-wide Rewards (Consumer points)
+        const rewardsSum = yield prisma_1.default.consumerProfile.aggregate({ _sum: { rewardsPoints: true } });
+        const totalRewardsPoints = Math.round(rewardsSum._sum.rewardsPoints || 0);
+        // 10. System-wide Inventory (Stock & evaluated cost value)
+        const allProducts = yield prisma_1.default.product.findMany();
+        const totalProductsCount = allProducts.length;
+        const totalInventoryValue = Math.round(allProducts.reduce((sum, p) => sum + (p.stock * (p.costPrice || p.price || 0)), 0));
         // Recent Activity - Merge Sales, New Customers, Loans, and Gas Topups
         const [recentSales, recentConsumers, recentLoans, recentGas] = yield Promise.all([
             prisma_1.default.sale.findMany({
@@ -203,6 +218,9 @@ const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             nfcCards: { total: nfcTotal, active: nfcActive, linked: nfcLinked },
             retailers: { total: retailerTotal, active: retailerActive, verified: retailerVerified },
             wholesalers: { total: wholesalerTotal, active: wholesalerActive },
+            wallets: { totalBalance: totalWalletBalance },
+            rewards: { totalPoints: totalRewardsPoints },
+            inventory: { totalProducts: totalProductsCount, totalValue: totalInventoryValue },
             recentActivity
         };
         res.json({
@@ -252,8 +270,21 @@ const getReports = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'approved').length;
         const pendingLoans = loans.filter(l => l.status === 'pending').length;
         const totalLoanAmount = loans.reduce((acc, l) => (l.status === 'active' || l.status === 'approved') ? acc + l.amount : acc, 0);
-        // 3. Growth rate (Simple mock for now, or compare with previous period if data exists)
-        const growthRate = 12.5;
+        // 3. Dynamic Growth rate calculation
+        const periodDuration = now.getTime() - startDate.getTime();
+        const prevPeriodStart = new Date(startDate.getTime() - periodDuration);
+        const prevSales = yield prisma_1.default.sale.findMany({
+            where: {
+                createdAt: {
+                    gte: prevPeriodStart,
+                    lt: startDate
+                }
+            }
+        });
+        const prevRevenue = prevSales.reduce((acc, s) => acc + s.totalAmount, 0);
+        const growthRate = prevRevenue > 0
+            ? Math.round(((totalRevenue - prevRevenue) / prevRevenue) * 1000) / 10
+            : 12.5; // fallback to 12.5 if no previous data
         res.json({
             success: true,
             summary: {
@@ -706,48 +737,39 @@ const getLoans = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 due_date: new Date(cr.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
             };
         });
-        // 3. Dynamic Wholesaler Loans Simulation
-        const wRate = Number(rates.wholesalerInterestRate) || 8;
-        const wInterest1 = Math.round(5000000 * (wRate / 100));
-        const wInterest2 = Math.round(12000000 * (wRate / 100));
-        const wholesalerLoans = [
-            {
-                id: 20001,
-                user_id: 'WHL-01',
-                user_name: 'Alpha Wholesale Dist.',
-                user_type: 'wholesaler',
-                amount: 5000000,
-                interest_rate: wRate,
-                interest_amount: wInterest1,
-                duration_months: 6,
-                monthly_payment: Math.round((5000000 + wInterest1) / 6),
-                total_repayable: 5000000 + wInterest1,
-                amount_paid: 2000000,
-                amount_remaining: (5000000 + wInterest1) - 2000000,
-                status: 'active',
-                lender: 'Big Innovation Group Ltd',
-                created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-                due_date: new Date(Date.now() + 135 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-                id: 20002,
-                user_id: 'WHL-02',
-                user_name: 'Mega Supply Rwanda',
-                user_type: 'wholesaler',
-                amount: 12000000,
-                interest_rate: wRate,
-                interest_amount: wInterest2,
-                duration_months: 12,
-                monthly_payment: Math.round((12000000 + wInterest2) / 12),
-                total_repayable: 12000000 + wInterest2,
-                amount_paid: 12000000 + wInterest2,
-                amount_remaining: 0,
-                status: 'completed',
-                lender: 'Partner Bank (Equity Bank)',
-                created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-                due_date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+        // 3. Dynamic Wholesaler Loans based on Supplier Payments (Outstanding bills acting as wholesaler liabilities)
+        const supplierPayments = yield prisma_1.default.supplierPayment.findMany({
+            include: {
+                supplier: true,
+                wholesalerProfile: {
+                    include: { user: true }
+                }
             }
-        ];
+        });
+        const wholesalerLoans = supplierPayments.map((sp) => {
+            var _a, _b, _c;
+            const rate = Number(rates.wholesalerInterestRate) || 8;
+            const interestAmount = Math.round(sp.amount * (rate / 100));
+            const totalRepayable = sp.amount + interestAmount;
+            return {
+                id: 20000 + sp.id,
+                user_id: ((_b = (_a = sp.wholesalerProfile) === null || _a === void 0 ? void 0 : _a.userId) === null || _b === void 0 ? void 0 : _b.toString()) || sp.wholesalerId.toString(),
+                user_name: ((_c = sp.wholesalerProfile) === null || _c === void 0 ? void 0 : _c.companyName) || 'Wholesaler Company',
+                user_type: 'wholesaler',
+                amount: sp.amount,
+                interest_rate: rate,
+                interest_amount: interestAmount,
+                duration_months: 1,
+                monthly_payment: totalRepayable,
+                total_repayable: totalRepayable,
+                amount_paid: sp.status === 'completed' ? totalRepayable : 0,
+                amount_remaining: sp.status === 'completed' ? 0 : totalRepayable,
+                status: sp.status === 'completed' ? 'completed' : 'active',
+                lender: sp.supplier.name,
+                created_at: sp.paymentDate.toISOString(),
+                due_date: new Date(sp.paymentDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            };
+        });
         const allLoans = [...consumerLoans, ...retailerLoans, ...wholesalerLoans];
         res.json({ success: true, loans: allLoans });
     }
@@ -1144,9 +1166,16 @@ const updateRetailerStatus = (req, res) => __awaiter(void 0, void 0, void 0, fun
         if (updatedUser.email) {
             yield email_queue_1.emailQueue.add('account-action-alert', {
                 to: updatedUser.email,
-                subject: newStatus ? '✅ Account Reactivated' : '🚨 Account Suspension Notice',
-                html: template_service_1.TemplateService.getAccountActionTemplate(newStatus ? 'ACTIVATED' : 'SUSPENDED'),
-                templateType: 'ACCOUNT_ACTION_ALERT'
+                templateType: 'account-action-alert', // Mapped to SYS-EMAIL-001
+                data: {
+                    action: newStatus ? 'Reactivated' : 'Suspended',
+                    status: newStatus ? 'activated' : 'suspended',
+                    date: new Date().toLocaleDateString(),
+                    reason: newStatus
+                        ? 'Your account has been reactivated by the system administrator.'
+                        : 'Your account has been suspended by the system administrator.'
+                },
+                relatedEntity: { type: 'USER', id: updatedUser.id.toString() }
             });
         }
         res.json({ success: true, message: `Retailer status updated to ${newStatus ? 'active' : 'inactive'}` });
@@ -1190,9 +1219,16 @@ const updateWholesalerStatus = (req, res) => __awaiter(void 0, void 0, void 0, f
         if (updatedUser.email) {
             yield email_queue_1.emailQueue.add('account-action-alert', {
                 to: updatedUser.email,
-                subject: newStatus ? '✅ Account Reactivated' : '🚨 Account Suspension Notice',
-                html: template_service_1.TemplateService.getAccountActionTemplate(newStatus ? 'ACTIVATED' : 'SUSPENDED'),
-                templateType: 'ACCOUNT_ACTION_ALERT'
+                templateType: 'account-action-alert', // Mapped to SYS-EMAIL-001
+                data: {
+                    action: newStatus ? 'Reactivated' : 'Suspended',
+                    status: newStatus ? 'activated' : 'suspended',
+                    date: new Date().toLocaleDateString(),
+                    reason: newStatus
+                        ? 'Your account has been reactivated by the system administrator.'
+                        : 'Your account has been suspended by the system administrator.'
+                },
+                relatedEntity: { type: 'USER', id: updatedUser.id.toString() }
             });
         }
         res.json({ success: true, message: `Wholesaler status updated to ${newStatus ? 'active' : 'inactive'}` });
@@ -3041,14 +3077,17 @@ exports.confirmWholesaleDelivery = confirmWholesaleDelivery;
  */
 const getEmailLogs = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { page = 1, limit = 50, status, search } = req.query;
+        const { page = 1, limit = 50, status, channel, search } = req.query;
         const skip = (Number(page) - 1) * Number(limit);
         const where = {};
         if (status)
             where.status = status;
+        if (channel)
+            where.channel = channel;
         if (search) {
             where.OR = [
                 { recipientEmail: { contains: search } },
+                { recipientPhone: { contains: search } },
                 { templateType: { contains: search } },
                 { relatedEntityId: { contains: search } },
                 // @ts-ignore
