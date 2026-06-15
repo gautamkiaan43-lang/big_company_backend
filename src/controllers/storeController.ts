@@ -729,16 +729,10 @@ export const getMyOrders = async (req: AuthRequest, res: Response) => {
 
     // 4. Normalize CustomerOrders (Gas/Service)
     const normalizedOthers = otherOrders.map(order => {
-      let items = [];
-      let meterId = undefined;
+      let items: any[] = [];
       try {
-        items = JSON.parse(order.items as string || '[]');
-        // For gas, items might be different, let's try to map generic items
-        // If gas order, items structure is [{meterNumber, units, amount}]
-        if (order.orderType === 'gas') {
-          // Try to extract meter info if available in metadata or items
-          // This is a simplification based on typical gas order structure
-        }
+        const parsed = JSON.parse(order.items as string || '[]');
+        items = Array.isArray(parsed) ? parsed : [];
       } catch (e) { }
 
       const metadata: any = order.metadata ? JSON.parse(order.metadata as string) : {};

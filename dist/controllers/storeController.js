@@ -718,15 +718,9 @@ const getMyOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         const normalizedOthers = otherOrders.map(order => {
             var _a;
             let items = [];
-            let meterId = undefined;
             try {
-                items = JSON.parse(order.items || '[]');
-                // For gas, items might be different, let's try to map generic items
-                // If gas order, items structure is [{meterNumber, units, amount}]
-                if (order.orderType === 'gas') {
-                    // Try to extract meter info if available in metadata or items
-                    // This is a simplification based on typical gas order structure
-                }
+                const parsed = JSON.parse(order.items || '[]');
+                items = Array.isArray(parsed) ? parsed : [];
             }
             catch (e) { }
             const metadata = order.metadata ? JSON.parse(order.metadata) : {};
