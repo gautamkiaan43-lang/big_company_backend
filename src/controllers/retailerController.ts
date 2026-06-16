@@ -1116,7 +1116,10 @@ export const updateSaleStatus = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Retailer profile not found' });
     }
 
-    const currentSale = await prisma.sale.findUnique({ where: { id: Number(id) } });
+    const currentSale = await prisma.sale.findUnique({
+      where: { id: Number(id) },
+      include: { saleItems: true }
+    });
     if (!currentSale || currentSale.retailerId !== retailerProfile.id) {
       return res.status(404).json({ error: 'Order not found' });
     }
@@ -1167,9 +1170,22 @@ export const updateSaleStatus = async (req: AuthRequest, res: Response) => {
       updateData.notes = notes;
     }
 
-    const sale = await prisma.sale.update({
-      where: { id: Number(id) },
-      data: updateData
+    const sale = await prisma.$transaction(async (tx) => {
+      const updatedSale = await tx.sale.update({
+        where: { id: Number(id) },
+        data: updateData
+      });
+
+      if (status === 'cancelled') {
+        for (const item of currentSale.saleItems) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } }
+          });
+        }
+      }
+
+      return updatedSale;
     });
 
     res.json({ success: true, sale });
@@ -1192,7 +1208,10 @@ export const cancelSale = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Retailer profile not found' });
     }
 
-    const currentSale = await prisma.sale.findUnique({ where: { id: Number(id) } });
+    const currentSale = await prisma.sale.findUnique({
+      where: { id: Number(id) },
+      include: { saleItems: true }
+    });
     if (!currentSale || currentSale.retailerId !== retailerProfile.id) {
       return res.status(404).json({ error: 'Order not found' });
     }
@@ -1204,15 +1223,27 @@ export const cancelSale = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const sale = await prisma.sale.update({
-      where: { id: Number(id) },
-      data: {
-        status: 'cancelled',
-        rejectionReason: reason
+    const sale = await prisma.$transaction(async (tx) => {
+      const updatedSale = await tx.sale.update({
+        where: { id: Number(id) },
+        data: {
+          status: 'cancelled',
+          rejectionReason: reason
+        }
+      });
+
+      // Restore stock
+      for (const item of currentSale.saleItems) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } }
+        });
       }
+
+      return updatedSale;
     });
 
-    res.json({ success: true, sale, message: 'Order cancelled successfully' });
+    res.json({ success: true, sale, message: 'Order cancelled successfully and stock restored' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

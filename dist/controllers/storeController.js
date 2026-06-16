@@ -304,7 +304,30 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 });
             }
             // Mobile money is handled externally / async usually, but here we assume confirmed status or synchronous simulation for POS
-            // 3. Create Sale Record
+            // 3. Validate and Decrement Stock
+            console.log('Validating stock...');
+            const productIds = items.map((item) => Number(item.productId));
+            const dbProducts = yield tx.product.findMany({
+                where: { id: { in: productIds } }
+            });
+            const productMap = new Map(dbProducts.map(p => [p.id, p]));
+            for (const item of items) {
+                const product = productMap.get(Number(item.productId));
+                if (!product) {
+                    throw new Error(`Product not found: ID ${item.productId}`);
+                }
+                if (product.stock < item.quantity || product.stock <= 0) {
+                    throw new Error(`Insufficient stock for product: ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+                }
+            }
+            console.log('Decrementing stock...');
+            for (const item of items) {
+                yield tx.product.update({
+                    where: { id: Number(item.productId) },
+                    data: { stock: { decrement: item.quantity } }
+                });
+            }
+            // 4. Create Sale Record
             console.log('Creating sale record...');
             const sale = yield tx.sale.create({
                 data: {
@@ -782,21 +805,33 @@ const cancelOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         if (!consumerProfile)
             return res.status(404).json({ error: 'Profile not found' });
         // Check Sales
-        const sale = yield prisma_1.default.sale.findUnique({ where: { id: Number(id) } });
+        const sale = yield prisma_1.default.sale.findUnique({
+            where: { id: Number(id) },
+            include: { saleItems: true }
+        });
         if (sale) {
             if (sale.consumerId !== consumerProfile.id)
                 return res.status(403).json({ error: 'Unauthorized' });
             if (!['pending', 'confirmed'].includes(sale.status)) {
                 return res.status(400).json({ error: 'Order cannot be cancelled in current state' });
             }
-            yield prisma_1.default.sale.update({
-                where: { id: Number(id) },
-                data: {
-                    status: 'cancelled',
-                    cancellationReason: reason
+            yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+                yield tx.sale.update({
+                    where: { id: Number(id) },
+                    data: {
+                        status: 'cancelled',
+                        cancellationReason: reason
+                    }
+                });
+                // Restore stock
+                for (const item of sale.saleItems) {
+                    yield tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { increment: item.quantity } }
+                    });
                 }
-            });
-            return res.json({ success: true, message: 'Order cancelled' });
+            }));
+            return res.json({ success: true, message: 'Order cancelled and stock restored' });
         }
         // Check CustomerOrders
         const order = yield prisma_1.default.customerOrder.findUnique({ where: { id: Number(id) } });
@@ -850,16 +885,7 @@ const confirmDelivery = (req, res) => __awaiter(void 0, void 0, void 0, function
             data: { status: 'delivered' },
             include: { saleItems: true }
         });
-        // Reduce retailer inventory upon delivery confirmation
-        for (const item of updatedSale.saleItems) {
-            if (item.productId) {
-                yield prisma_1.default.product.updateMany({
-                    where: { id: item.productId, stock: { gt: 0 } },
-                    data: { stock: { decrement: item.quantity } }
-                });
-            }
-        }
-        res.json({ success: true, message: 'Delivery confirmed and inventory reduced' });
+        res.json({ success: true, message: 'Delivery confirmed' });
         // Trigger Customer SMS Notification (CUS-SMS-002)
         try {
             const consumer = yield prisma_1.default.consumerProfile.findUnique({

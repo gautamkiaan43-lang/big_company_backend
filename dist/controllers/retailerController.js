@@ -1042,7 +1042,10 @@ const updateSaleStatus = (req, res) => __awaiter(void 0, void 0, void 0, functio
         if (!retailerProfile) {
             return res.status(404).json({ error: 'Retailer profile not found' });
         }
-        const currentSale = yield prisma_1.default.sale.findUnique({ where: { id: Number(id) } });
+        const currentSale = yield prisma_1.default.sale.findUnique({
+            where: { id: Number(id) },
+            include: { saleItems: true }
+        });
         if (!currentSale || currentSale.retailerId !== retailerProfile.id) {
             return res.status(404).json({ error: 'Order not found' });
         }
@@ -1087,10 +1090,21 @@ const updateSaleStatus = (req, res) => __awaiter(void 0, void 0, void 0, functio
         if (notes) {
             updateData.notes = notes;
         }
-        const sale = yield prisma_1.default.sale.update({
-            where: { id: Number(id) },
-            data: updateData
-        });
+        const sale = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            const updatedSale = yield tx.sale.update({
+                where: { id: Number(id) },
+                data: updateData
+            });
+            if (status === 'cancelled') {
+                for (const item of currentSale.saleItems) {
+                    yield tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { increment: item.quantity } }
+                    });
+                }
+            }
+            return updatedSale;
+        }));
         res.json({ success: true, sale });
     }
     catch (error) {
@@ -1109,7 +1123,10 @@ const cancelSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         if (!retailerProfile) {
             return res.status(404).json({ error: 'Retailer profile not found' });
         }
-        const currentSale = yield prisma_1.default.sale.findUnique({ where: { id: Number(id) } });
+        const currentSale = yield prisma_1.default.sale.findUnique({
+            where: { id: Number(id) },
+            include: { saleItems: true }
+        });
         if (!currentSale || currentSale.retailerId !== retailerProfile.id) {
             return res.status(404).json({ error: 'Order not found' });
         }
@@ -1119,14 +1136,24 @@ const cancelSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 error: `Cannot cancel order in ${currentSale.status} status`
             });
         }
-        const sale = yield prisma_1.default.sale.update({
-            where: { id: Number(id) },
-            data: {
-                status: 'cancelled',
-                rejectionReason: reason
+        const sale = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            const updatedSale = yield tx.sale.update({
+                where: { id: Number(id) },
+                data: {
+                    status: 'cancelled',
+                    rejectionReason: reason
+                }
+            });
+            // Restore stock
+            for (const item of currentSale.saleItems) {
+                yield tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { increment: item.quantity } }
+                });
             }
-        });
-        res.json({ success: true, sale, message: 'Order cancelled successfully' });
+            return updatedSale;
+        }));
+        res.json({ success: true, sale, message: 'Order cancelled successfully and stock restored' });
     }
     catch (error) {
         res.status(500).json({ error: error.message });
