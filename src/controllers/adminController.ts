@@ -11,7 +11,7 @@ import { TemplateService } from '../services/template.service';
 import { validateBusinessEmailFormat } from '../utils/email-validator';
 
 
-// Get detailed dashboard stats
+// Get detailed dashboard stats.
 export const getDashboard = async (req: AuthRequest, res: Response) => {
   try {
     const now = new Date();
