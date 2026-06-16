@@ -293,6 +293,11 @@ export const getReports = async (req: AuthRequest, res: Response) => {
 export const getCustomers = async (req: AuthRequest, res: Response) => {
   try {
     const customers = await prisma.consumerProfile.findMany({
+      where: {
+        user: {
+          role: 'consumer'
+        }
+      },
       include: {
         user: true,
         wallets: true,
@@ -316,15 +321,16 @@ export const getCustomers = async (req: AuthRequest, res: Response) => {
     const formattedCustomers = customers.map(customer => {
       const orderCount = customer.sales.length;
       const totalSpent = customer.sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-      const gasRewardWalletBalance = customer.wallets.find(w => w.type === 'gas_rewards_wallet')?.balance || 0;
-      const gasBalance = gasRewardWalletBalance.toFixed(2) + " M³";
+
+      // Calculate gas rewards balance dynamically
+      const totalGasRewards = customer.gasRewards.reduce((sum, r) => sum + r.units, 0);
+      const gasBalance = totalGasRewards.toFixed(3) + " M³";
 
       // Calculate active cash/dashboard wallet balance dynamically
       const cashWallet = customer.wallets.find(w => w.type === 'dashboard_wallet' || w.type === 'main');
       const walletBalance = cashWallet ? cashWallet.balance : 0;
 
       // Calculate gas rewards balance dynamically (convert to points where 1 m3 = 100 points for frontend rendering)
-      const totalGasRewards = customer.gasRewards.reduce((sum, r) => sum + r.units, 0);
       const rewardsPoints = totalGasRewards * 100;
 
       return {
@@ -2499,7 +2505,7 @@ export const getCustomerAccountDetails = async (req: AuthRequest, res: Response)
     const walletSummary = {
       dashboardWallet: customer.wallets.find(w => w.type === 'dashboard_wallet')?.balance || 0,
       rewardsWallet: customer.wallets.find(w => w.type === 'rewards_wallet')?.balance || 0,
-      gasRewardsWallet: customer.wallets.find(w => w.type === 'gas_rewards_wallet')?.balance || 0,
+      gasRewardsWallet: customer.gasRewards.reduce((sum, r) => sum + r.units, 0),
       creditWallet: customer.wallets.find(w => w.type === 'credit_wallet')?.balance || 0,
       gasBalance: customer.gasMeters.reduce((sum, m) => sum + (m.currentUnits || 0), 0)
     };
