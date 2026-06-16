@@ -112,7 +112,7 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
             return res.status(400).json({ success: false, error: 'Amount must be a positive number.' });
         }
         // Only deduct if authenticated and using a payment method
-        if (userId && (paymentMethod === 'wallet' || paymentMethod === 'gas_rewards' || paymentMethod === 'nfc_card')) {
+        if (userId && (paymentMethod === 'wallet' || paymentMethod === 'credit_wallet' || paymentMethod === 'gas_rewards' || paymentMethod === 'nfc_card')) {
             const consumerProfile = yield prisma_1.default.consumerProfile.findUnique({
                 where: { userId },
             });
@@ -179,6 +179,30 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
                         type: 'gas_meter_recharge',
                         amount: -totalMoneyAmount,
                         description: `Gas Meter Recharge - ${meterNumber}`,
+                        status: 'completed',
+                    },
+                });
+            }
+            else if (paymentMethod === 'credit_wallet') {
+                const creditWallet = yield prisma_1.default.wallet.findFirst({
+                    where: { consumerId: consumerProfileId, type: 'credit_wallet' },
+                });
+                if (!creditWallet || creditWallet.balance < totalMoneyAmount) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Insufficient credit wallet balance. Available: ${(creditWallet === null || creditWallet === void 0 ? void 0 : creditWallet.balance) || 0} RWF. Required: ${totalMoneyAmount} RWF.`,
+                    });
+                }
+                yield prisma_1.default.wallet.update({
+                    where: { id: creditWallet.id },
+                    data: { balance: { decrement: totalMoneyAmount } },
+                });
+                yield prisma_1.default.walletTransaction.create({
+                    data: {
+                        walletId: creditWallet.id,
+                        type: 'gas_meter_recharge',
+                        amount: -totalMoneyAmount,
+                        description: `Gas Meter Recharge - ${meterNumber} (Credit)`,
                         status: 'completed',
                     },
                 });
@@ -399,21 +423,6 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
                             orderId: String(txRecord.id)
                         }
                     });
-                    // Award Gas Reward (10% of units purchased)
-                    if (unitsPurchased > 0) {
-                        const rewardUnits = Number((unitsPurchased * 0.1).toFixed(4));
-                        yield prisma_1.default.gasReward.create({
-                            data: {
-                                consumerId: consumerProfileId,
-                                units: rewardUnits,
-                                source: 'purchase',
-                                reference: `Reward for Recharge #${txRecord.id}`,
-                                saleId: linkedSaleId,
-                                meterId: meter.meterNumber
-                            }
-                        });
-                        console.log(`[GasRecharge] Awarded ${rewardUnits} m3 reward to consumer ${consumerProfileId}`);
-                    }
                 }
                 if (paymentMethod !== 'mobile_money') {
                     yield prisma_1.default.gasMeter.update({
@@ -447,15 +456,16 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
                 }
             }
             if (smsRecipient) {
-                const units = apiResult.units || totalVolume;
                 console.log(`[GasRecharge] Dispatching dynamic SMS token to ${smsRecipient} via queue...`);
                 const { emailQueue } = yield Promise.resolve().then(() => __importStar(require('../queues/email.queue')));
+                const isZamuka = selectedProvider === 'stronpower';
+                const resolvedMeterName = isZamuka ? 'Zamuka Gas Meter' : 'Tekana Gas Meter';
                 yield emailQueue.add('gas-recharge-success', {
                     to: smsRecipient,
                     templateType: 'gas-recharge-success', // Mapped to CUS-SMS-004
                     data: {
                         customer_name: customerName,
-                        meter_name: 'Gas Meter',
+                        meter_name: resolvedMeterName,
                         meter_id: meterNumber,
                         amount: totalMoneyAmount.toLocaleString(),
                         token: apiResult.token || 'N/A',
@@ -463,24 +473,6 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
                     },
                     relatedEntity: { type: 'GAS_RECHARGE', id: String(txRecord.id) }
                 });
-                // Trigger Gas Reward SMS Notification (CUS-SMS-006)
-                const rewardUnits = Number((units * 0.1).toFixed(4));
-                if (rewardUnits > 0) {
-                    const rewards = yield prisma_1.default.gasReward.findMany({
-                        where: { consumerId: consumerProfileId }
-                    });
-                    const totalRewardBalance = rewards.reduce((sum, r) => sum + r.units, 0);
-                    yield emailQueue.add('gas-reward-update', {
-                        to: smsRecipient,
-                        templateType: 'gas-reward-update', // Mapped to CUS-SMS-006
-                        data: {
-                            customer_name: customerName,
-                            reward_amount: rewardUnits.toFixed(4),
-                            new_reward_balance: totalRewardBalance.toFixed(4)
-                        },
-                        relatedEntity: { type: 'GAS_RECHARGE', id: String(txRecord.id) }
-                    });
-                }
             }
         }
         catch (smsErr) {
@@ -489,12 +481,14 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
     }
     if (!isFullySuccessful) {
         // Refund logic...
-        if (userId && paymentMethod === 'wallet') {
+        if (userId && (paymentMethod === 'wallet' || paymentMethod === 'credit_wallet')) {
             try {
                 if (!consumerProfileId)
                     return; // Cannot refund if no profile (though unlikely if payment succeeded)
+                const isCredit = paymentMethod === 'credit_wallet';
+                const walletType = isCredit ? 'credit_wallet' : 'dashboard_wallet';
                 const wallet = yield prisma_1.default.wallet.findFirst({
-                    where: { consumerId: consumerProfileId, type: 'dashboard_wallet' },
+                    where: { consumerId: consumerProfileId, type: walletType },
                 });
                 if (wallet) {
                     yield prisma_1.default.wallet.update({
@@ -504,7 +498,7 @@ const initiateGasMeterRecharge = (req, res) => __awaiter(void 0, void 0, void 0,
                     yield prisma_1.default.walletTransaction.create({
                         data: {
                             walletId: wallet.id,
-                            type: 'gas_meter_recharge_refund',
+                            type: isCredit ? 'gas_meter_recharge_refund_credit' : 'gas_meter_recharge_refund',
                             amount: totalMoneyAmount,
                             description: `Refund: ${meterType} Recharge failed - ${meterNumber}`,
                             status: 'completed',

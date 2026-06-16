@@ -422,22 +422,6 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
                             orderId: String(txRecord.id)
                         }
                     });
-
-                    // Award Gas Reward (10% of units purchased)
-                    if (unitsPurchased > 0) {
-                        const rewardUnits = Number((unitsPurchased * 0.1).toFixed(4));
-                        await prisma.gasReward.create({
-                            data: {
-                                consumerId: consumerProfileId,
-                                units: rewardUnits,
-                                source: 'purchase',
-                                reference: `Reward for Recharge #${txRecord.id}`,
-                                saleId: linkedSaleId,
-                                meterId: meter.meterNumber
-                            }
-                        });
-                        console.log(`[GasRecharge] Awarded ${rewardUnits} m3 reward to consumer ${consumerProfileId}`);
-                    }
                 }
 
                 if (paymentMethod !== 'mobile_money') {
@@ -474,7 +458,6 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
             }
 
             if (smsRecipient) {
-                const units = apiResult.units || totalVolume;
                 console.log(`[GasRecharge] Dispatching dynamic SMS token to ${smsRecipient} via queue...`);
                 const { emailQueue } = await import('../queues/email.queue');
 
@@ -494,26 +477,6 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
                     },
                     relatedEntity: { type: 'GAS_RECHARGE', id: String(txRecord.id) }
                 });
-
-                // Trigger Gas Reward SMS Notification (CUS-SMS-006)
-                const rewardUnits = Number((units * 0.1).toFixed(4));
-                if (rewardUnits > 0) {
-                    const rewards = await prisma.gasReward.findMany({
-                        where: { consumerId: consumerProfileId! }
-                    });
-                    const totalRewardBalance = rewards.reduce((sum, r) => sum + r.units, 0);
-
-                    await emailQueue.add('gas-reward-update', {
-                        to: smsRecipient,
-                        templateType: 'gas-reward-update', // Mapped to CUS-SMS-006
-                        data: {
-                            customer_name: customerName,
-                            reward_amount: rewardUnits.toFixed(4),
-                            new_reward_balance: totalRewardBalance.toFixed(4)
-                        },
-                        relatedEntity: { type: 'GAS_RECHARGE', id: String(txRecord.id) }
-                    });
-                }
             }
         } catch (smsErr: any) {
             console.error('[GasRecharge] Failed to dispatch SMS token:', smsErr.message);

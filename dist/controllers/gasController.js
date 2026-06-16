@@ -407,16 +407,8 @@ const topupGas = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 // Return special result indicating pending
                 return { topup, order, newBalance: 0, rewardUnits: 0, isPending: true, transactionId: pmResult.transactionId };
             }
-            // Award gas rewards (10% of units)
-            const rewardUnits = units * 0.1;
-            yield tx.gasReward.create({
-                data: {
-                    consumerId: consumerProfile.id,
-                    units: rewardUnits,
-                    source: 'purchase',
-                    reference: order.id.toString()
-                }
-            });
+            // Award gas rewards (disabled - rewards only for shopping)
+            const rewardUnits = 0;
             return { topup, order, newBalance, rewardUnits };
         }));
         const { topup, order, newBalance, rewardUnits, isPending, transactionId } = result;
@@ -469,23 +461,6 @@ const topupGas = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 },
                 relatedEntity: { type: 'GAS_ORDER', id: order.id.toString() }
             });
-            // Trigger Gas Reward SMS Notification (CUS-SMS-006)
-            if (rewardUnits > 0) {
-                const rewards = yield prisma_1.default.gasReward.findMany({
-                    where: { consumerId: consumerProfile.id }
-                });
-                const totalRewardBalance = rewards.reduce((sum, r) => sum + r.units, 0);
-                yield emailQueue.add('gas-reward-update', {
-                    to: consumerProfile.user.phone,
-                    templateType: 'gas-reward-update', // Mapped to CUS-SMS-006
-                    data: {
-                        customer_name: consumerProfile.fullName || consumerProfile.user.name || 'Valued Customer',
-                        reward_amount: rewardUnits.toFixed(4),
-                        new_reward_balance: totalRewardBalance.toFixed(4)
-                    },
-                    relatedEntity: { type: 'GAS_ORDER', id: order.id.toString() }
-                });
-            }
         }
         catch (err) {
             console.error('Gas recharge notifications failed:', err);

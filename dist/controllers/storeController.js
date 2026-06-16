@@ -150,12 +150,20 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             shouldCalculateReward = !!targetRewardId;
             log(`Wallet/NFC payment, rewards: ${shouldCalculateReward}`);
         }
+        // Resolve which consumer receives the gas reward.
+        // The gasRewardWalletId at checkout can belong to the shopper OR another customer.
+        let rewardConsumerId = consumerProfile.id; // default: shopper's own account
         if (gasRewardWalletId) {
-            log(`Checking gasRewardWalletId: ${gasRewardWalletId}`);
-            if (consumerProfile.gasRewardWalletId && consumerProfile.gasRewardWalletId !== gasRewardWalletId) {
-                log('Gas Reward Wallet ID mismatch!');
-                return res.status(400).json({ success: false, error: 'Invalid Gas Reward Wallet ID provided.' });
+            log(`Looking up consumer by gasRewardWalletId: ${gasRewardWalletId}`);
+            const rewardConsumer = yield prisma_1.default.consumerProfile.findFirst({
+                where: { gasRewardWalletId: gasRewardWalletId }
+            });
+            if (!rewardConsumer) {
+                log('Gas Reward Wallet ID not found!');
+                return res.status(400).json({ success: false, error: 'Invalid Gas Reward Wallet ID. No account found with this ID.' });
             }
+            rewardConsumerId = rewardConsumer.id;
+            log(`Reward will be credited to consumer ID: ${rewardConsumerId}`);
         }
         log('Calculating amount to pay...');
         let amountToPay = total;
@@ -374,7 +382,7 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                     console.log('Awarding gas rewards:', rewardUnits);
                     yield tx.gasReward.create({
                         data: {
-                            consumerId: consumerProfile.id,
+                            consumerId: rewardConsumerId, // Use the wallet-ID-resolved consumer, not always the shopper
                             saleId: sale.id,
                             meterId: targetRewardId || null, // Capture which ID earned this
                             units: rewardUnits,
