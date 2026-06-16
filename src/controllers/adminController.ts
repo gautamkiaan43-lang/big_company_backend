@@ -3416,13 +3416,13 @@ export const getEmailTemplates = async (req: AuthRequest, res: Response) => {
  */
 export const saveEmailTemplate = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, subject, content, description, isActive } = req.body;
+    const { name, subject, content, description, isActive, portal, triggerName } = req.body;
 
     // @ts-ignore
     const template = await prisma.emailTemplate.upsert({
       where: { name },
-      update: { subject, content, description, isActive },
-      create: { name, subject, content, description, isActive }
+      update: { subject, content, description, isActive, portal, triggerName },
+      create: { name, subject, content, description, isActive, portal, triggerName }
     });
 
     res.json({ success: true, template, message: 'Template saved successfully' });
@@ -3452,14 +3452,41 @@ export const deleteEmailTemplate = async (req: AuthRequest, res: Response) => {
  */
 export const sendManualEmail = async (req: AuthRequest, res: Response) => {
   try {
-    const { recipients, subject, html, category } = req.body;
+    const { recipients, groups, subject, html, category } = req.body;
 
-    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
-      return res.status(400).json({ success: false, error: 'No recipients provided' });
+    let targetRecipients: string[] = Array.isArray(recipients) ? [...recipients] : [];
+
+    if (groups && Array.isArray(groups) && groups.length > 0) {
+      const roleMap: Record<string, string> = {
+        'Customers': 'consumer',
+        'Retailers': 'retailer',
+        'Wholesalers': 'wholesaler',
+        'customers': 'consumer',
+        'retailers': 'retailer',
+        'wholesalers': 'wholesaler'
+      };
+
+      const rolesToQuery = groups.map(g => roleMap[g] || g.toLowerCase());
+
+      const groupUsers = await prisma.user.findMany({
+        where: {
+          role: { in: rolesToQuery as any },
+          isActive: true,
+          email: { not: null }
+        },
+        select: { email: true }
+      });
+
+      const groupEmails = groupUsers.map(u => u.email!).filter(e => e && e.trim() !== '');
+      targetRecipients = Array.from(new Set([...targetRecipients, ...groupEmails]));
+    }
+
+    if (targetRecipients.length === 0) {
+      return res.status(400).json({ success: false, error: 'No recipients resolved' });
     }
 
     // Add each to queue (Requirement 4.2.10)
-    const jobs = recipients.map(email => ({
+    const jobs = targetRecipients.map(email => ({
       name: 'manual-announcement',
       data: {
         to: email,
@@ -3471,7 +3498,7 @@ export const sendManualEmail = async (req: AuthRequest, res: Response) => {
 
     await emailQueue.addBulk(jobs);
 
-    res.json({ success: true, message: `Queued ${recipients.length} emails successfully` });
+    res.json({ success: true, message: `Queued ${targetRecipients.length} emails successfully` });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3499,6 +3526,48 @@ export const updateEmailEvent = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { templateName, description } = req.body;
+
+    if (templateName) {
+      // Fetch the template to check its target portal
+      // @ts-ignore
+      const template = await prisma.emailTemplate.findUnique({
+        where: { name: templateName }
+      });
+
+      if (!template) {
+        return res.status(404).json({ success: false, error: `Template '${templateName}' not found` });
+      }
+
+      // Fetch the event to get its slug
+      // @ts-ignore
+      const event = await prisma.emailEvent.findUnique({
+        where: { id: Number(id) }
+      });
+
+      if (!event) {
+        return res.status(404).json({ success: false, error: 'Event mapping not found' });
+      }
+
+      const eventSlug = event.eventSlug.toLowerCase();
+      let eventPortal = 'SHARED';
+      if (eventSlug.startsWith('wholesaler-') || eventSlug.startsWith('who-')) {
+        eventPortal = 'WHOLESALER';
+      } else if (eventSlug.startsWith('customer-') || eventSlug.startsWith('cus-')) {
+        eventPortal = 'CUSTOMER';
+      } else if (eventSlug.startsWith('retailer-') || eventSlug.startsWith('ret-')) {
+        eventPortal = 'RETAILER';
+      }
+
+      const templatePortal = (template.portal || 'CUSTOMER').toUpperCase();
+      const isSharedTemplate = ['SHARED', 'ALL', 'MULTIPLE/ALL', 'MULTIPLE', 'SYSTEM'].includes(templatePortal);
+
+      if (!isSharedTemplate && templatePortal !== eventPortal) {
+        return res.status(400).json({
+          success: false,
+          error: `Portal mismatch: Cannot assign a ${template.portal} template to a ${eventPortal.toLowerCase()}-related event (${event.eventSlug}).`
+        });
+      }
+    }
 
     // @ts-ignore
     const event = await prisma.emailEvent.update({
