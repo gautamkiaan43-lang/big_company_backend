@@ -3562,9 +3562,11 @@ export const updateEmailEvent = async (req: AuthRequest, res: Response) => {
       const isSharedTemplate = ['SHARED', 'ALL', 'MULTIPLE/ALL', 'MULTIPLE', 'SYSTEM'].includes(templatePortal);
 
       if (!isSharedTemplate && templatePortal !== eventPortal) {
+        const friendlyTemplatePortal = template.portal.toLowerCase();
+        const friendlyEventPortal = eventPortal === 'SHARED' ? 'general/shared' : `${eventPortal.toLowerCase()}-specific`;
         return res.status(400).json({
           success: false,
-          error: `Portal mismatch: Cannot assign a ${template.portal} template to a ${eventPortal.toLowerCase()}-related event (${event.eventSlug}).`
+          error: `Audience Mismatch: The selected template is designed for ${friendlyTemplatePortal}s, but this system event is for ${friendlyEventPortal} communications. Please select a template matching the target audience.`
         });
       }
     }
