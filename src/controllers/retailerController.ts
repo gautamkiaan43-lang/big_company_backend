@@ -12,7 +12,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     const retailerProfile = await prisma.retailerProfile.findUnique({
       where: { userId: req.user!.id },
       include: {
-        orders: true // Orders to wholesalers
+        orders: true, // Orders to wholesalers
+        credit: true
       }
     });
 
@@ -98,6 +99,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 
     // Inventory Stats
     const inventoryItems = inventory.length;
+
     // LOW STOCK: Dynamically calculated (stock <= lowStockThreshold OR stock === 0)
     const lowStockItems = inventory.filter(p => {
       const threshold = p.lowStockThreshold || 10;
@@ -217,7 +219,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
         capitalWallet: retailerProfile.walletBalance,
         profitWallet: totalProfit, // Keep for backward compatibility (now holds realized profit)
         walletBalance: retailerProfile.walletBalance,
-        creditLimit: retailerProfile.creditLimit,
+        creditLimit: retailerProfile.credit ? retailerProfile.credit.creditLimit : retailerProfile.creditLimit,
 
         // Today
         todaySales: todaySalesAmount,
@@ -673,17 +675,21 @@ export const createBranch = async (req: AuthRequest, res: Response) => {
 export const getWallet = async (req: AuthRequest, res: Response) => {
   try {
     const retailerProfile = await prisma.retailerProfile.findUnique({
-      where: { userId: req.user!.id }
+      where: { userId: req.user!.id },
+      include: { credit: true }
     });
 
     if (!retailerProfile) {
       return res.status(404).json({ error: 'Retailer profile not found' });
     }
 
+    const creditLimit = retailerProfile.credit ? retailerProfile.credit.creditLimit : retailerProfile.creditLimit;
+    const usedCredit = retailerProfile.credit ? retailerProfile.credit.usedCredit : 0;
+
     res.json({
       balance: retailerProfile.walletBalance,
-      creditLimit: retailerProfile.creditLimit,
-      availableCredit: retailerProfile.creditLimit - 0 // Assuming no outstanding credit for now
+      creditLimit: creditLimit,
+      availableCredit: creditLimit - usedCredit
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
