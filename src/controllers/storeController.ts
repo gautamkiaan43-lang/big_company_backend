@@ -120,12 +120,20 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       log(`Wallet/NFC payment, rewards: ${shouldCalculateReward}`);
     }
 
+    // Resolve which consumer receives the gas reward.
+    // The gasRewardWalletId at checkout can belong to the shopper OR another customer.
+    let rewardConsumerId: number = consumerProfile.id; // default: shopper's own account
     if (gasRewardWalletId) {
-      log(`Checking gasRewardWalletId: ${gasRewardWalletId}`);
-      if (consumerProfile.gasRewardWalletId && consumerProfile.gasRewardWalletId !== gasRewardWalletId) {
-        log('Gas Reward Wallet ID mismatch!');
-        return res.status(400).json({ success: false, error: 'Invalid Gas Reward Wallet ID provided.' });
+      log(`Looking up consumer by gasRewardWalletId: ${gasRewardWalletId}`);
+      const rewardConsumer = await prisma.consumerProfile.findFirst({
+        where: { gasRewardWalletId: gasRewardWalletId }
+      });
+      if (!rewardConsumer) {
+        log('Gas Reward Wallet ID not found!');
+        return res.status(400).json({ success: false, error: 'Invalid Gas Reward Wallet ID. No account found with this ID.' });
       }
+      rewardConsumerId = rewardConsumer.id;
+      log(`Reward will be credited to consumer ID: ${rewardConsumerId}`);
     }
 
     log('Calculating amount to pay...');
@@ -293,7 +301,33 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       }
       // Mobile money is handled externally / async usually, but here we assume confirmed status or synchronous simulation for POS
 
-      // 3. Create Sale Record
+      // 3. Validate and Decrement Stock
+      console.log('Validating stock...');
+      const productIds = items.map((item: any) => Number(item.productId));
+      const dbProducts = await tx.product.findMany({
+        where: { id: { in: productIds } }
+      });
+      const productMap = new Map(dbProducts.map(p => [p.id, p]));
+
+      for (const item of items) {
+        const product = productMap.get(Number(item.productId));
+        if (!product) {
+          throw new Error(`Product not found: ID ${item.productId}`);
+        }
+        if (product.stock < item.quantity || product.stock <= 0) {
+          throw new Error(`Insufficient stock for product: ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+        }
+      }
+
+      console.log('Decrementing stock...');
+      for (const item of items) {
+        await tx.product.update({
+          where: { id: Number(item.productId) },
+          data: { stock: { decrement: item.quantity } }
+        });
+      }
+
+      // 4. Create Sale Record
       console.log('Creating sale record...');
       const sale = await tx.sale.create({
         data: {
@@ -345,11 +379,11 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           console.log('Awarding gas rewards:', rewardUnits);
           await tx.gasReward.create({
             data: {
-              consumerId: consumerProfile.id,
+              consumerId: rewardConsumerId, // Use the wallet-ID-resolved consumer, not always the shopper
               saleId: sale.id,
               meterId: targetRewardId || null, // Capture which ID earned this
               units: rewardUnits,
-              profitAmount: totalProfit, 
+              profitAmount: totalProfit,
               source: 'purchase_reward',
               reference: `Reward for Order #${sale.id}`
             }
@@ -802,21 +836,34 @@ export const cancelOrder = async (req: AuthRequest, res: Response) => {
     if (!consumerProfile) return res.status(404).json({ error: 'Profile not found' });
 
     // Check Sales
-    const sale = await prisma.sale.findUnique({ where: { id: Number(id) } });
+    const sale = await prisma.sale.findUnique({
+      where: { id: Number(id) },
+      include: { saleItems: true }
+    });
     if (sale) {
       if (sale.consumerId !== consumerProfile.id) return res.status(403).json({ error: 'Unauthorized' });
       if (!['pending', 'confirmed'].includes(sale.status)) {
         return res.status(400).json({ error: 'Order cannot be cancelled in current state' });
       }
 
-      await prisma.sale.update({
-        where: { id: Number(id) },
-        data: { 
-          status: 'cancelled',
-          cancellationReason: reason
+      await prisma.$transaction(async (tx) => {
+        await tx.sale.update({
+          where: { id: Number(id) },
+          data: { 
+            status: 'cancelled',
+            cancellationReason: reason
+          }
+        });
+
+        // Restore stock
+        for (const item of sale.saleItems) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } }
+          });
         }
       });
-      return res.json({ success: true, message: 'Order cancelled' });
+      return res.json({ success: true, message: 'Order cancelled and stock restored' });
     }
 
     // Check CustomerOrders
@@ -873,17 +920,7 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
       include: { saleItems: true }
     });
 
-    // Reduce retailer inventory upon delivery confirmation
-    for (const item of updatedSale.saleItems) {
-      if (item.productId) {
-        await prisma.product.updateMany({
-          where: { id: item.productId, stock: { gt: 0 } },
-          data: { stock: { decrement: item.quantity } }
-        });
-      }
-    }
-
-    res.json({ success: true, message: 'Delivery confirmed and inventory reduced' });
+    res.json({ success: true, message: 'Delivery confirmed' });
 
     // Trigger Customer SMS Notification (CUS-SMS-002)
     try {

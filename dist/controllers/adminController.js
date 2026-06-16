@@ -55,7 +55,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const email_queue_1 = require("../queues/email.queue");
 const email_validator_1 = require("../utils/email-validator");
-// Get detailed dashboard stats
+// Get detailed dashboard stats.
 const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const now = new Date();

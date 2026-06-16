@@ -85,7 +85,7 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
         }
 
         // Only deduct if authenticated and using a payment method
-        if (userId && (paymentMethod === 'wallet' || paymentMethod === 'gas_rewards' || paymentMethod === 'nfc_card')) {
+        if (userId && (paymentMethod === 'wallet' || paymentMethod === 'credit_wallet' || paymentMethod === 'gas_rewards' || paymentMethod === 'nfc_card')) {
             const consumerProfile = await prisma.consumerProfile.findUnique({
                 where: { userId },
             });
@@ -162,6 +162,32 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
                         type: 'gas_meter_recharge',
                         amount: -totalMoneyAmount,
                         description: `Gas Meter Recharge - ${meterNumber}`,
+                        status: 'completed',
+                    },
+                });
+            } else if (paymentMethod === 'credit_wallet') {
+                const creditWallet = await prisma.wallet.findFirst({
+                    where: { consumerId: consumerProfileId, type: 'credit_wallet' },
+                });
+
+                if (!creditWallet || creditWallet.balance < totalMoneyAmount) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Insufficient credit wallet balance. Available: ${creditWallet?.balance || 0} RWF. Required: ${totalMoneyAmount} RWF.`,
+                    });
+                }
+
+                await prisma.wallet.update({
+                    where: { id: creditWallet.id },
+                    data: { balance: { decrement: totalMoneyAmount } },
+                });
+
+                await prisma.walletTransaction.create({
+                    data: {
+                        walletId: creditWallet.id,
+                        type: 'gas_meter_recharge',
+                        amount: -totalMoneyAmount,
+                        description: `Gas Meter Recharge - ${meterNumber} (Credit)`,
                         status: 'completed',
                     },
                 });
@@ -451,12 +477,16 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
                 const units = apiResult.units || totalVolume;
                 console.log(`[GasRecharge] Dispatching dynamic SMS token to ${smsRecipient} via queue...`);
                 const { emailQueue } = await import('../queues/email.queue');
+
+                const isZamuka = selectedProvider === 'stronpower';
+                const resolvedMeterName = isZamuka ? 'Zamuka Gas Meter' : 'Tekana Gas Meter';
+
                 await emailQueue.add('gas-recharge-success', {
                     to: smsRecipient,
                     templateType: 'gas-recharge-success', // Mapped to CUS-SMS-004
                     data: {
                         customer_name: customerName,
-                        meter_name: 'Gas Meter',
+                        meter_name: resolvedMeterName,
                         meter_id: meterNumber,
                         amount: totalMoneyAmount.toLocaleString(),
                         token: apiResult.token || 'N/A',
@@ -492,12 +522,15 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
 
     if (!isFullySuccessful) {
         // Refund logic...
-        if (userId && paymentMethod === 'wallet') {
+        if (userId && (paymentMethod === 'wallet' || paymentMethod === 'credit_wallet')) {
             try {
                 if (!consumerProfileId) return; // Cannot refund if no profile (though unlikely if payment succeeded)
 
+                const isCredit = paymentMethod === 'credit_wallet';
+                const walletType = isCredit ? 'credit_wallet' : 'dashboard_wallet';
+
                 const wallet = await prisma.wallet.findFirst({
-                    where: { consumerId: consumerProfileId, type: 'dashboard_wallet' },
+                    where: { consumerId: consumerProfileId, type: walletType },
                 });
                 if (wallet) {
                     await prisma.wallet.update({
@@ -507,7 +540,7 @@ export const initiateGasMeterRecharge = async (req: AuthRequest, res: Response) 
                     await prisma.walletTransaction.create({
                         data: {
                             walletId: wallet.id,
-                            type: 'gas_meter_recharge_refund',
+                            type: isCredit ? 'gas_meter_recharge_refund_credit' : 'gas_meter_recharge_refund',
                             amount: totalMoneyAmount,
                             description: `Refund: ${meterType} Recharge failed - ${meterNumber}`,
                             status: 'completed',
