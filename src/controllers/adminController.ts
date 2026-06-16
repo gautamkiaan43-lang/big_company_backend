@@ -10,6 +10,7 @@ import { emailQueue } from '../queues/email.queue';
 import { TemplateService } from '../services/template.service';
 import { validateBusinessEmailFormat } from '../utils/email-validator';
 
+
 // Get detailed dashboard stats
 export const getDashboard = async (req: AuthRequest, res: Response) => {
   try {
@@ -251,7 +252,7 @@ export const getReports = async (req: AuthRequest, res: Response) => {
       }
     });
     const prevRevenue = prevSales.reduce((acc, s) => acc + s.totalAmount, 0);
-    const growthRate = prevRevenue > 0 
+    const growthRate = prevRevenue > 0
       ? Math.round(((totalRevenue - prevRevenue) / prevRevenue) * 1000) / 10
       : 12.5; // fallback to 12.5 if no previous data
 
@@ -450,7 +451,7 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
 export const getRetailers = async (req: AuthRequest, res: Response) => {
   try {
     const retailers = await prisma.retailerProfile.findMany({
-      include: { 
+      include: {
         user: true,
         sales: {
           select: {
@@ -525,11 +526,11 @@ export const createRetailer = async (req: AuthRequest, res: Response) => {
     await emailQueue.add('onboarding-email', {
       to: email,
       templateType: 'retailer-registration', // Mapped to RET-EMAIL-001
-      data: { 
-        retail_name: business_name, 
+      data: {
+        retail_name: business_name,
         retail_id: retailer.id.toString(),
         phone: phone,
-        email: email, 
+        email: email,
         created_date: new Date().toLocaleDateString(),
         login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/retailer/login?email=${email}&tempPass=${actualPassword}`
       },
@@ -609,11 +610,11 @@ export const createWholesaler = async (req: AuthRequest, res: Response) => {
     await emailQueue.add('onboarding-email', {
       to: email,
       templateType: 'wholesaler-registration', // Mapped to WHO-EMAIL-001
-      data: { 
-        wholesaler_name: company_name, 
+      data: {
+        wholesaler_name: company_name,
         wholesaler_id: user.id.toString(), // Using user.id as fallback for ID
         phone: phone,
-        email: email, 
+        email: email,
         created_date: new Date().toLocaleDateString(),
         login_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/wholesaler/login?email=${email}&tempPass=${actualPassword}`
       },
@@ -920,7 +921,7 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, code, description, isActive } = req.body;
-    
+
     // Fetch old category to see if name changed
     const oldCategory = await prisma.category.findUnique({
       where: { id: Number(id) }
@@ -950,7 +951,7 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
 export const deleteCategory = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     // Find category name first
     const categoryObj = await prisma.category.findUnique({
       where: { id: Number(id) }
@@ -1216,8 +1217,8 @@ export const updateRetailerStatus = async (req: AuthRequest, res: Response) => {
           action: newStatus ? 'Reactivated' : 'Suspended',
           status: newStatus ? 'activated' : 'suspended',
           date: new Date().toLocaleDateString(),
-          reason: newStatus 
-            ? 'Your account has been reactivated by the system administrator.' 
+          reason: newStatus
+            ? 'Your account has been reactivated by the system administrator.'
             : 'Your account has been suspended by the system administrator.'
         },
         relatedEntity: { type: 'USER', id: updatedUser.id.toString() }
@@ -1272,8 +1273,8 @@ export const updateWholesalerStatus = async (req: AuthRequest, res: Response) =>
           action: newStatus ? 'Reactivated' : 'Suspended',
           status: newStatus ? 'activated' : 'suspended',
           date: new Date().toLocaleDateString(),
-          reason: newStatus 
-            ? 'Your account has been reactivated by the system administrator.' 
+          reason: newStatus
+            ? 'Your account has been reactivated by the system administrator.'
             : 'Your account has been suspended by the system administrator.'
         },
         relatedEntity: { type: 'USER', id: updatedUser.id.toString() }
@@ -3416,7 +3417,7 @@ export const getEmailTemplates = async (req: AuthRequest, res: Response) => {
 export const saveEmailTemplate = async (req: AuthRequest, res: Response) => {
   try {
     const { name, subject, content, description, isActive } = req.body;
-    
+
     // @ts-ignore
     const template = await prisma.emailTemplate.upsert({
       where: { name },
@@ -3498,7 +3499,7 @@ export const updateEmailEvent = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { templateName, description } = req.body;
-    
+
     // @ts-ignore
     const event = await prisma.emailEvent.update({
       where: { id: Number(id) },
