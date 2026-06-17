@@ -21,10 +21,10 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
     const todayStart = new Date(now.setHours(0, 0, 0, 0));
 
     // 1. Customers
-    const customerTotal = await prisma.consumerProfile.count();
-    const customerLast24h = await prisma.consumerProfile.count({ where: { user: { createdAt: { gte: last24h } } } });
-    const customerLast7d = await prisma.consumerProfile.count({ where: { user: { createdAt: { gte: last7d } } } });
-    const customerLast30d = await prisma.consumerProfile.count({ where: { user: { createdAt: { gte: last30d } } } });
+    const customerTotal = await prisma.consumerProfile.count({ where: { user: { role: 'consumer' } } });
+    const customerLast24h = await prisma.consumerProfile.count({ where: { user: { role: 'consumer', createdAt: { gte: last24h } } } });
+    const customerLast7d = await prisma.consumerProfile.count({ where: { user: { role: 'consumer', createdAt: { gte: last7d } } } });
+    const customerLast30d = await prisma.consumerProfile.count({ where: { user: { role: 'consumer', createdAt: { gte: last30d } } } });
 
     // 2. Orders & Revenue (Combine B2C Sales and B2B Wholesaler Orders)
     const [sales, wholesaleOrders] = await Promise.all([
@@ -59,7 +59,7 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
     const loanActive = loans.filter(l => l.status === 'active' || l.status === 'approved').length;
     const loanPaid = loans.filter(l => l.status === 'paid' || l.status === 'repaid').length;
     const loanDefaulted = loans.filter(l => l.status === 'defaulted' || l.status === 'overdue').length;
-    const outstandingAmount = Math.round(loans.reduce((acc, l) => l.status === 'active' ? acc + l.amount : acc, 0));
+    const outstandingAmount = Math.round(loans.reduce((acc, l) => (l.status === 'active' || l.status === 'approved' || l.status === 'defaulted' || l.status === 'overdue') ? acc + l.amount : acc, 0));
 
     // 5. Gas (using GasTopup or Sale with gas category)
     const gasTopups = await prisma.gasTopup.findMany();
@@ -170,7 +170,7 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
         walletTopups,
         gasPurchases,
         nfcPayments,
-        loanDisbursements: loanActive, // Approximate
+        loanDisbursements: txs.filter(t => t.type === 'loan' || t.type === 'disbursement').length,
         totalVolume
       },
       loans: {
