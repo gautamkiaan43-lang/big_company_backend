@@ -10,10 +10,10 @@ async function main() {
     const updated = await prisma.retailerCredit.update({
       where: { id: credit.id },
       data: {
-        availableCredit: credit.creditLimit - credit.usedCredit
+        availableCredit: 3300
       }
     });
-    console.log('Successfully reconciled credit record:', updated);
+    console.log('Restored credit record:', updated);
   } else {
     console.log('No credit record found for retailer 24');
   }
