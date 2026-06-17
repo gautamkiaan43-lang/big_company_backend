@@ -95,7 +95,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 
     const todaySalesAmount = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
     const customersToday = new Set(todaySales.map(s => s.consumerId).filter(Boolean)).size || todaySales.length;
-    const totalOrders = todaySales.length;
+    const totalOrders = allSales.length;
 
     // Inventory Stats
     const inventoryItems = inventory.length;
