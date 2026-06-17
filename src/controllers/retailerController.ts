@@ -2019,7 +2019,8 @@ export const makeRepayment = async (req: AuthRequest, res: Response) => {
         await prisma.retailerCredit.update({
           where: { retailerId: retailerProfile.id },
           data: {
-            usedCredit: { decrement: amount }
+            usedCredit: { decrement: amount },
+            availableCredit: { increment: amount }
           }
         });
       }
@@ -2096,7 +2097,8 @@ export const payCredit = async (req: AuthRequest, res: Response) => {
         await tx.retailerCredit.update({
           where: { retailerId: retailerProfile.id },
           data: {
-            usedCredit: { decrement: amount }
+            usedCredit: { decrement: amount },
+            availableCredit: { increment: amount }
           }
         });
       }
