@@ -45,6 +45,7 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
     const todayOrders = sales.filter(s => s.createdAt >= todayStart).length + wholesaleOrders.filter(o => o.createdAt >= todayStart).length;
 
     // 3. Transactions (using WalletTransaction)
+
     const txs = await prisma.walletTransaction.findMany({ where: { createdAt: { gte: last30d } } });
     const txTotal = await prisma.walletTransaction.count();
     const walletTopups = txs.filter(t => t.type === 'top_up').length;
