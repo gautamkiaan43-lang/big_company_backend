@@ -65,7 +65,10 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     // Calculate Stats
     // DYNAMIC PROFIT CALCULATION (Realized form Sales)
     const sales = await prisma.sale.findMany({
-      where: { retailerId: retailerProfile.id },
+      where: {
+        retailerId: retailerProfile.id,
+        status: { not: 'cancelled' }  // Exclude cancelled orders from revenue
+      },
       include: {
         saleItems: {
           include: { product: true }
@@ -129,7 +132,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 
     const paymentMethodsData = Object.entries(paymentStats).map(([name, value]) => ({
       name: name === 'momo' ? 'MTN Mobile Money' : name === 'airtel' ? 'Airtel Money' : name.charAt(0).toUpperCase() + name.slice(1),
-      value: Math.round((value / (todaySalesAmount || 1)) * 100), // Percentage
+      value: Math.round(((value as number) / (todaySalesAmount || 1)) * 100), // Percentage
       color: name === 'momo' ? '#ffcc00' : name === 'cash' ? '#52c41a' : '#1890ff'
     }));
 
@@ -812,9 +815,9 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
     for (const item of items) {
       const product = productMap.get(Number(item.product_id));
-      if (!product || product.stock < item.quantity) {
+      if (!product || product.stock < Number(item.quantity)) {
         return res.status(400).json({
-          error: `Insufficient stock for product: ${product?.name || item.product_id}`
+          error: `Insufficient stock for product: ${product?.name ?? String(item.product_id)}`
         });
       }
     }
@@ -1017,10 +1020,10 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
         for (const item of items) {
           const product = productMap.get(Number(item.product_id));
-          if (product && product.costPrice) {
-            const profitPerItem = item.price - product.costPrice;
+          if (product && product.costPrice != null) {
+            const profitPerItem = Number(item.price) - product.costPrice;
             if (profitPerItem > 0) {
-              totalProfit += profitPerItem * item.quantity;
+              totalProfit += profitPerItem * Number(item.quantity);
             }
           }
         }
