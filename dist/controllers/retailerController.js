@@ -161,14 +161,20 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
         const potentialRevenue = inventory.reduce((sum, p) => sum + (p.stock * p.price), 0);
         const profitWallet = potentialRevenue - capitalWallet; // This is Potential Inventory Profit
         // Payment Method Breakdown
-        const paymentStats = todaySales.reduce((acc, sale) => {
-            const method = sale.paymentMethod || 'cash';
+        const paymentStats = sales.reduce((acc, sale) => {
+            let method = sale.paymentMethod || 'cash';
+            if (method === 'dashboard_wallet')
+                method = 'wallet';
+            if (method === 'credit_wallet')
+                method = 'credit';
+            if (method === 'mobile_money' || method === 'airtel')
+                method = 'momo';
             acc[method] = (acc[method] || 0) + sale.totalAmount;
             return acc;
         }, {});
         const paymentMethodsData = Object.entries(paymentStats).map(([name, value]) => ({
             name: name === 'momo' ? 'MTN Mobile Money' : name === 'airtel' ? 'Airtel Money' : name.charAt(0).toUpperCase() + name.slice(1),
-            value: Math.round((value / (todaySalesAmount || 1)) * 100), // Percentage
+            value: Math.round((value / (totalRevenue || 1)) * 100), // Percentage of total revenue
             color: name === 'momo' ? '#ffcc00' : name === 'cash' ? '#52c41a' : '#1890ff'
         }));
         // Hourly Sales Data (for chart)
