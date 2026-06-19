@@ -70,6 +70,7 @@ router.get('/', async (req, res) => {
 
     res.json({
       status: 'Debug Info',
+      version: 'v1.0.3-test',
       timestamp: now.toISOString(),
       environment: {
         NODE_ENV: process.env.NODE_ENV,

@@ -108,6 +108,7 @@ router.get('/', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             : dbUrl;
         res.json({
             status: 'Debug Info',
+            version: 'v1.0.3-test',
             timestamp: now.toISOString(),
             environment: {
                 NODE_ENV: process.env.NODE_ENV,
