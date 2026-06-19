@@ -36,7 +36,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       todaySales,
       allSales,
       inventory,
-      pendingOrders
+      pendingOrders,
+      gasRewardsAggregate
     ] = await Promise.all([
       // Today's Sales
       prisma.sale.findMany({
@@ -58,6 +59,17 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
         where: {
           retailerId: retailerProfile.id,
           status: 'pending'
+        }
+      }),
+      // Gas Rewards given
+      prisma.gasReward.aggregate({
+        where: {
+          sale: {
+            retailerId: retailerProfile.id
+          }
+        },
+        _sum: {
+          units: true
         }
       })
     ]);
@@ -234,8 +246,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
         creditWalletRevenue: paymentStats['credit'] || 0,
         mobileMoneyRevenue: paymentStats['momo'] || 0,
         cashRevenue: paymentStats['cash'] || 0,
-        gasRewardsGiven: 0,
-        gasRewardsValue: 0
+        gasRewardsGiven: gasRewardsAggregate._sum.units || 0,
+        gasRewardsValue: (gasRewardsAggregate._sum.units || 0) * 50000
       },
 
       // Lists

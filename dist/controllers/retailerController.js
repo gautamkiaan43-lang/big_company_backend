@@ -57,7 +57,8 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
             where: { userId: req.user.id },
             include: {
-                orders: true // Orders to wholesalers
+                orders: true, // Orders to wholesalers
+                credit: true
             }
         });
         if (!retailerProfile) {
@@ -72,7 +73,7 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
         startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Monday
         startOfWeek.setHours(0, 0, 0, 0);
         // Fetch data in parallel
-        const [todaySales, allSales, inventory, pendingOrders] = yield Promise.all([
+        const [todaySales, allSales, inventory, pendingOrders, gasRewardsAggregate] = yield Promise.all([
             // Today's Sales
             prisma_1.default.sale.findMany({
                 where: {
@@ -94,12 +95,26 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
                     retailerId: retailerProfile.id,
                     status: 'pending'
                 }
+            }),
+            // Gas Rewards given
+            prisma_1.default.gasReward.aggregate({
+                where: {
+                    sale: {
+                        retailerId: retailerProfile.id
+                    }
+                },
+                _sum: {
+                    units: true
+                }
             })
         ]);
         // Calculate Stats
         // DYNAMIC PROFIT CALCULATION (Realized form Sales)
         const sales = yield prisma_1.default.sale.findMany({
-            where: { retailerId: retailerProfile.id },
+            where: {
+                retailerId: retailerProfile.id,
+                status: { not: 'cancelled' } // Exclude cancelled orders from revenue
+            },
             include: {
                 saleItems: {
                     include: { product: true }
@@ -125,7 +140,7 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
         const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
         const todaySalesAmount = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
         const customersToday = new Set(todaySales.map(s => s.consumerId).filter(Boolean)).size || todaySales.length;
-        const totalOrders = todaySales.length;
+        const totalOrders = allSales.length;
         // Inventory Stats
         const inventoryItems = inventory.length;
         // LOW STOCK: Dynamically calculated (stock <= lowStockThreshold OR stock === 0)
@@ -235,7 +250,7 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 capitalWallet: retailerProfile.walletBalance,
                 profitWallet: totalProfit, // Keep for backward compatibility (now holds realized profit)
                 walletBalance: retailerProfile.walletBalance,
-                creditLimit: retailerProfile.creditLimit,
+                creditLimit: retailerProfile.credit ? retailerProfile.credit.creditLimit : retailerProfile.creditLimit,
                 // Today
                 todaySales: todaySalesAmount,
                 customersToday,
@@ -245,8 +260,8 @@ const getDashboardStats = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 creditWalletRevenue: paymentStats['credit'] || 0,
                 mobileMoneyRevenue: paymentStats['momo'] || 0,
                 cashRevenue: paymentStats['cash'] || 0,
-                gasRewardsGiven: 0,
-                gasRewardsValue: 0
+                gasRewardsGiven: gasRewardsAggregate._sum.units || 0,
+                gasRewardsValue: (gasRewardsAggregate._sum.units || 0) * 50000
             },
             // Lists
             salesData: chartData,
@@ -655,15 +670,18 @@ exports.createBranch = createBranch;
 const getWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
-            where: { userId: req.user.id }
+            where: { userId: req.user.id },
+            include: { credit: true }
         });
         if (!retailerProfile) {
             return res.status(404).json({ error: 'Retailer profile not found' });
         }
+        const creditLimit = retailerProfile.credit ? retailerProfile.credit.creditLimit : retailerProfile.creditLimit;
+        const usedCredit = retailerProfile.credit ? retailerProfile.credit.usedCredit : 0;
         res.json({
             balance: retailerProfile.walletBalance,
-            creditLimit: retailerProfile.creditLimit,
-            availableCredit: retailerProfile.creditLimit - 0 // Assuming no outstanding credit for now
+            creditLimit: creditLimit,
+            availableCredit: creditLimit - usedCredit
         });
     }
     catch (error) {
@@ -746,7 +764,7 @@ const scanBarcode = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 exports.scanBarcode = scanBarcode;
 // Create Sale (Retailer POS)
 const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     try {
         const retailerProfile = yield prisma_1.default.retailerProfile.findUnique({
             where: { userId: req.user.id }
@@ -766,9 +784,9 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         const productMap = new Map(products.map(p => [p.id, p]));
         for (const item of items) {
             const product = productMap.get(Number(item.product_id));
-            if (!product || product.stock < item.quantity) {
+            if (!product || product.stock < Number(item.quantity)) {
                 return res.status(400).json({
-                    error: `Insufficient stock for product: ${(product === null || product === void 0 ? void 0 : product.name) || item.product_id}`
+                    error: `Insufficient stock for product: ${(_a = product === null || product === void 0 ? void 0 : product.name) !== null && _a !== void 0 ? _a : String(item.product_id)}`
                 });
             }
         }
@@ -945,10 +963,10 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 let totalProfit = 0;
                 for (const item of items) {
                     const product = productMap.get(Number(item.product_id));
-                    if (product && product.costPrice) {
-                        const profitPerItem = item.price - product.costPrice;
+                    if (product && product.costPrice != null) {
+                        const profitPerItem = Number(item.price) - product.costPrice;
                         if (profitPerItem > 0) {
-                            totalProfit += profitPerItem * item.quantity;
+                            totalProfit += profitPerItem * Number(item.quantity);
                         }
                     }
                 }
@@ -985,7 +1003,7 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             });
             for (const product of soldProducts) {
                 const threshold = product.lowStockThreshold || 10;
-                if (product.stock <= 0 && ((_b = (_a = product.retailerProfile) === null || _a === void 0 ? void 0 : _a.user) === null || _b === void 0 ? void 0 : _b.email)) {
+                if (product.stock <= 0 && ((_c = (_b = product.retailerProfile) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.email)) {
                     // Out of Stock (RET-EMAIL-014)
                     yield email_queue_1.emailQueue.add('out-of-stock-alert', {
                         to: product.retailerProfile.user.email,
@@ -998,7 +1016,7 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                         relatedEntity: { type: 'PRODUCT', id: product.id.toString() }
                     });
                 }
-                else if (product.stock <= threshold && ((_d = (_c = product.retailerProfile) === null || _c === void 0 ? void 0 : _c.user) === null || _d === void 0 ? void 0 : _d.email)) {
+                else if (product.stock <= threshold && ((_e = (_d = product.retailerProfile) === null || _d === void 0 ? void 0 : _d.user) === null || _e === void 0 ? void 0 : _e.email)) {
                     // Low Stock (RET-EMAIL-013)
                     yield email_queue_1.emailQueue.add('low-stock-alert', {
                         to: product.retailerProfile.user.email,

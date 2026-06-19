@@ -64,10 +64,10 @@ const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const todayStart = new Date(now.setHours(0, 0, 0, 0));
         // 1. Customers
-        const customerTotal = yield prisma_1.default.consumerProfile.count();
-        const customerLast24h = yield prisma_1.default.consumerProfile.count({ where: { user: { createdAt: { gte: last24h } } } });
-        const customerLast7d = yield prisma_1.default.consumerProfile.count({ where: { user: { createdAt: { gte: last7d } } } });
-        const customerLast30d = yield prisma_1.default.consumerProfile.count({ where: { user: { createdAt: { gte: last30d } } } });
+        const customerTotal = yield prisma_1.default.consumerProfile.count({ where: { user: { role: 'consumer' } } });
+        const customerLast24h = yield prisma_1.default.consumerProfile.count({ where: { user: { role: 'consumer', createdAt: { gte: last24h } } } });
+        const customerLast7d = yield prisma_1.default.consumerProfile.count({ where: { user: { role: 'consumer', createdAt: { gte: last7d } } } });
+        const customerLast30d = yield prisma_1.default.consumerProfile.count({ where: { user: { role: 'consumer', createdAt: { gte: last30d } } } });
         // 2. Orders & Revenue (Combine B2C Sales and B2B Wholesaler Orders)
         const [sales, wholesaleOrders] = yield Promise.all([
             prisma_1.default.sale.findMany(),
@@ -96,7 +96,7 @@ const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const loanActive = loans.filter(l => l.status === 'active' || l.status === 'approved').length;
         const loanPaid = loans.filter(l => l.status === 'paid' || l.status === 'repaid').length;
         const loanDefaulted = loans.filter(l => l.status === 'defaulted' || l.status === 'overdue').length;
-        const outstandingAmount = Math.round(loans.reduce((acc, l) => l.status === 'active' ? acc + l.amount : acc, 0));
+        const outstandingAmount = Math.round(loans.reduce((acc, l) => (l.status === 'active' || l.status === 'approved' || l.status === 'defaulted' || l.status === 'overdue') ? acc + l.amount : acc, 0));
         // 5. Gas (using GasTopup or Sale with gas category)
         const gasTopups = yield prisma_1.default.gasTopup.findMany();
         const gasTotalPurchases = gasTopups.length;
@@ -203,7 +203,7 @@ const getDashboard = (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 walletTopups,
                 gasPurchases,
                 nfcPayments,
-                loanDisbursements: loanActive, // Approximate
+                loanDisbursements: txs.filter(t => t.type === 'loan' || t.type === 'disbursement').length,
                 totalVolume
             },
             loans: {
@@ -323,6 +323,11 @@ exports.getReports = getReports;
 const getCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const customers = yield prisma_1.default.consumerProfile.findMany({
+            where: {
+                user: {
+                    role: 'consumer'
+                }
+            },
             include: {
                 user: true,
                 wallets: true,
@@ -343,16 +348,15 @@ const getCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             }
         });
         const formattedCustomers = customers.map(customer => {
-            var _a;
             const orderCount = customer.sales.length;
             const totalSpent = customer.sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-            const gasRewardWalletBalance = ((_a = customer.wallets.find(w => w.type === 'gas_rewards_wallet')) === null || _a === void 0 ? void 0 : _a.balance) || 0;
-            const gasBalance = gasRewardWalletBalance.toFixed(2) + " M³";
+            // Calculate gas rewards balance dynamically
+            const totalGasRewards = customer.gasRewards.reduce((sum, r) => sum + r.units, 0);
+            const gasBalance = totalGasRewards.toFixed(3) + " M³";
             // Calculate active cash/dashboard wallet balance dynamically
             const cashWallet = customer.wallets.find(w => w.type === 'dashboard_wallet' || w.type === 'main');
             const walletBalance = cashWallet ? cashWallet.balance : 0;
             // Calculate gas rewards balance dynamically (convert to points where 1 m3 = 100 points for frontend rendering)
-            const totalGasRewards = customer.gasRewards.reduce((sum, r) => sum + r.units, 0);
             const rewardsPoints = totalGasRewards * 100;
             return Object.assign(Object.assign({}, customer), { walletBalance,
                 rewardsPoints,
@@ -2229,7 +2233,7 @@ exports.updateSystemConfig = updateSystemConfig;
 // ==========================================
 // Get comprehensive real-time customer account details (READ-ONLY)
 const getCustomerAccountDetails = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _a, _b, _c;
     try {
         const { id } = req.params;
         const customer = yield prisma_1.default.consumerProfile.findUnique({
@@ -2287,8 +2291,8 @@ const getCustomerAccountDetails = (req, res) => __awaiter(void 0, void 0, void 0
         const walletSummary = {
             dashboardWallet: ((_a = customer.wallets.find(w => w.type === 'dashboard_wallet')) === null || _a === void 0 ? void 0 : _a.balance) || 0,
             rewardsWallet: ((_b = customer.wallets.find(w => w.type === 'rewards_wallet')) === null || _b === void 0 ? void 0 : _b.balance) || 0,
-            gasRewardsWallet: ((_c = customer.wallets.find(w => w.type === 'gas_rewards_wallet')) === null || _c === void 0 ? void 0 : _c.balance) || 0,
-            creditWallet: ((_d = customer.wallets.find(w => w.type === 'credit_wallet')) === null || _d === void 0 ? void 0 : _d.balance) || 0,
+            gasRewardsWallet: customer.gasRewards.reduce((sum, r) => sum + r.units, 0),
+            creditWallet: ((_c = customer.wallets.find(w => w.type === 'credit_wallet')) === null || _c === void 0 ? void 0 : _c.balance) || 0,
             gasBalance: customer.gasMeters.reduce((sum, m) => sum + (m.currentUnits || 0), 0)
         };
         // Order statistics
